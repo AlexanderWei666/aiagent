@@ -36,7 +36,7 @@ class LLMConfig:
     def __init__(self):
         self.provider = os.getenv("LLM_PROVIDER", "openrouter")
         self.api_key = os.getenv("LLM_API_KEY")
-        self.model = os.getenv("LLM_MODEL", "deepseek/deepseek-chat")
+        self.model = os.getenv("LLM_MODEL", "z-ai/glm-4.5-air:free")
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.4"))
         self.base_url = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
         self.max_history = int(os.getenv("MAX_HISTORY", "20"))
