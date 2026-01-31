@@ -1,13 +1,15 @@
-import os
 import logging
+import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph import MessagesState
+from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langgraph.graph import MessagesState
+from langgraph.graph import StateGraph, START, END
+from langgraph.prebuilt import ToolNode, tools_condition
 
 # ────────────────────────────────────────────────
 # 环境变量 & 日志
@@ -53,20 +55,11 @@ class LLMConfig:
 # 提示词
 # ────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """你是一个实验性 AI 代理，基于 LangGraph 构建。
-你**必须**严格按照以下格式回复，不要添加任何多余内容：
+SYSTEM_PROMPT = """你是一个具备计算能力的 AI 助手。
+当用户要求进行数学运算时，请调用 calculate 工具。
+计算完成后，请根据工具返回的结果给用户最终答案。
 
-<thinking>
-1. 理解用户意图：...
-2. 需要的信息/工具：...
-3. 我的推理步骤：...
-</thinking>
-
-<final_answer>
-最终清晰、完整的回答写在这里
-</final_answer>
-
-全程用中文，语气专业且友好。"""
+全程用中文回复。"""
 
 
 def create_prompt() -> ChatPromptTemplate:
@@ -74,6 +67,32 @@ def create_prompt() -> ChatPromptTemplate:
         ("system", SYSTEM_PROMPT),
         MessagesPlaceholder("messages"),
     ])
+
+
+# ────────────────────────────────────────────────
+# 工具定义
+# ────────────────────────────────────────────────
+@tool
+def calculate(expression: str) -> str:
+    """执行数学计算。注意：sin/cos/tan 默认使用弧度。
+    如需计算角度，请使用圆周率pi配合计算"""
+    try:
+        logger.info(f"调用工具：传入表达式{expression}")
+        # 安全起见，只允许基本的数学运算
+        allowed_names = {"__builtins__": {}}
+        allowed_names.update({
+            "sin": __import__("math").sin,
+            "cos": __import__("math").cos,
+            "tan": __import__("math").tan,
+            "sqrt": __import__("math").sqrt,
+            "pi": __import__("math").pi,  # 允许使用圆周率
+            # 可以继续加其他函数
+        })
+        result = eval(expression, allowed_names)
+        logger.info(result)
+        return str(result)
+    except Exception as e:
+        return f"计算错误：{str(e)}"
 
 
 # ────────────────────────────────────────────────
@@ -92,9 +111,13 @@ llm = ChatOpenAI(
     model=config.model,
     temperature=config.temperature,
 )
+# 在初始化 llm 之后，加这一行
+# 可以以后加更多工具
+tools = [calculate]
+llm_with_tools = llm.bind_tools(tools)
 
 prompt = create_prompt()
-llm_chain = prompt | llm
+llm_chain = prompt | llm_with_tools
 
 
 # ────────────────────────────────────────────────
@@ -104,7 +127,7 @@ llm_chain = prompt | llm
 def agent(state: MessagesState) -> dict:
     """核心代理节点"""
     try:
-        response = llm_chain.invoke(state["messages"])
+        response = llm_chain.invoke({"messages": state["messages"]})
         logger.debug(f"生成回复，长度：{len(response.content)}")
         return {"messages": [response]}
     except Exception as e:
@@ -117,15 +140,26 @@ def agent(state: MessagesState) -> dict:
 # 构建图
 # ────────────────────────────────────────────────
 
-def build_graph():
-    workflow = StateGraph(state_schema=MessagesState)
-    workflow.add_node("agent", agent)
+def build_graph_with_tool():
+    workflow = StateGraph(state_schema=MessagesState) # type: ignore
+    # 工具执行节点（LangGraph 官方预置）
+    tool_node = ToolNode(tools=tools)
+    workflow.add_node("agent", agent) # type: ignore
+    workflow.add_node("tools", tool_node)
+    # 条件边：由 tools_condition 自动判断
+    # 如果最后一条消息是 AIMessage 且有 tool_calls，就去 tools 节点
     workflow.add_edge(START, "agent")
-    workflow.add_edge("agent", END)
+    workflow.add_conditional_edges(
+        "agent",
+        tools_condition,  # 官方工具条件判断函数
+        {"tools": "tools", END: END}
+    )
+    workflow.add_edge("tools", "agent")  # 工具执行完回到 agent
+
     return workflow.compile()
 
 
-graph = build_graph()
+graph = build_graph_with_tool()
 logger.info("LangGraph 已编译完成")
 
 
@@ -186,7 +220,7 @@ def test_interactive_chat(verbose: bool = True):
                 messages_history = messages_history[-config.max_history:]
 
             # 调用代理
-            result = graph.invoke({"messages": messages_history})
+            result = graph.invoke({"messages": messages_history}) # type: ignore
             # logger.info(f"代理返回结果: {result['messages']}")
             ai_msg = result["messages"][-1]
 
@@ -198,7 +232,7 @@ def test_interactive_chat(verbose: bool = True):
             # 显示历史（调试用）
             if verbose and len(messages_history) > 2:
                 print("[最近消息历史]")
-                for i, msg in enumerate(messages_history[-6:], len(messages_history)-5):
+                for i, msg in enumerate(messages_history[-6:], len(messages_history) - 5):
                     role = "👤 你" if isinstance(msg, HumanMessage) else "🤖 AI"
                     preview = msg.content[:60].replace("\n", " ").strip()
                     if len(msg.content) > 60:
