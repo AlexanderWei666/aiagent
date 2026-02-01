@@ -155,3 +155,26 @@ AI : <thinking>
 - 明白了为什么很多人说 LangGraph 比老 LangChain AgentExecutor 更灵活（但也更需要手动管理状态）
 - 环境配置虽然花了时间，但一旦通了，后续开发效率很高
 - 最大的惊喜：跑通多轮对话后，真的有“它在和我聊天”的感觉
+
+# AI Agent 学习笔记 - Day 2 (2026-02-01)
+
+## 今日目标
+让代理具备工具调用能力，实现基础 ReAct 循环
+
+## 学习内容概要
+
+1. 核心概念
+   - Tool / Tool calling / function calling
+   - ReAct 工作流（Reason → Act → Observe → Reason ...）
+   - LangGraph 中的工具支持：ToolNode、tools_condition
+
+2. 第一个工具实现
+   - 工具名称：`calculate`
+   - 定义方式：@tool 装饰器
+   - 代码片段：
+
+     ```python
+     @tool
+     def calculate(expression: str) -> str:
+         """描述..."""
+         ...
