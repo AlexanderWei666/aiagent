@@ -21,6 +21,16 @@ source ~/.zprofile
 
 # 4. 验证
 python --version
+
+# 5.安装依赖
+python -m pip install -U \
+    langgraph \
+    langchain \
+    langchain-core \
+    langchain-openai \
+    langchain-community \
+    python-dotenv \
+    httpx
 ```
 
 - 环境优化：切换到 `libmamba` 求解器，将默认 Python 改为 3.12，引入`conda-forge`
@@ -33,7 +43,7 @@ conda config --add channels conda-forge
 conda config --set channel_priority strict
 ```
 
-- LLM 选择：OpenRouter + deepseek/deepseek-chat（理由：免费额度充足、支持工具调用、速度快、上下文窗口大）
+- LLM 选择：qwen-flash,理由，速度快，免费
 
 ## 代码实现
 - 文件：`hello_agent.py`
