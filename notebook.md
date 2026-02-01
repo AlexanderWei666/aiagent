@@ -23,14 +23,7 @@ source ~/.zprofile
 python --version
 
 # 5.安装依赖
-python -m pip install -U \
-    langgraph \
-    langchain \
-    langchain-core \
-    langchain-openai \
-    langchain-community \
-    python-dotenv \
-    httpx
+python -m pip install -U langgraph langchain langchain-core langchain-openai langchain-community python-dotenv httpx
 ```
 
 - 环境优化：切换到 `libmamba` 求解器，将默认 Python 改为 3.12，引入`conda-forge`
