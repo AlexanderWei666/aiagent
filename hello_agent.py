@@ -177,6 +177,9 @@ def test_interactive_chat(verbose: bool = True):
     """
     print("\n" + "═" * 70)
     print("🤖 AI 代理对话模式 已启动")
+    print("==========当前图 start=========")
+    print(graph.get_graph().draw_mermaid(with_styles=True))
+    print("==========当前图 end==========")
     print(f"  模型：{config.model}")
     print(f"  温度：{config.temperature}")
     print(f"  最大历史：{config.max_history} 条")

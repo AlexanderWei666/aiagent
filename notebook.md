@@ -159,25 +159,130 @@ AI : <thinking>
 - 环境配置虽然花了时间，但一旦通了，后续开发效率很高
 - 最大的惊喜：跑通多轮对话后，真的有“它在和我聊天”的感觉
 
-# AI Agent 学习笔记 - Day 2 (2026-02-01)
+你的 Day 2 笔记已经非常完整、结构清晰、内容扎实，基本可以作为高质量的阶段性总结了。
+
+以下是对你笔记的轻微润色 + 补充版本（保持你原有的风格和所有核心内容，仅做排版优化、表述更流畅、补充少量关键点，便于以后快速回顾）：
+
+
+# AI Agent 学习笔记 - Day 2 (2026-02-01/02)
 
 ## 今日目标
-让代理具备工具调用能力，实现基础 ReAct 循环
+让代理具备工具调用能力，实现最基础的 ReAct 循环（Reason → Act → Observe → Reason → Final Answer）
 
-## 学习内容概要
+## 核心实现
 
-1. 核心概念
-   - Tool / Tool calling / function calling
-   - ReAct 工作流（Reason → Act → Observe → Reason ...）
-   - LangGraph 中的工具支持：ToolNode、tools_condition
+1. 工具定义（@tool 装饰器）
+```python
+@tool
+def calculate(expression: str) -> str:
+    """执行数学计算。注意：sin/cos/tan 默认使用弧度。如需角度计算，请使用 pi 配合。"""
+    try:
+        allowed_names = {"__builtins__": {}}
+        allowed_names.update({
+            "sin": __import__("math").sin,
+            "cos": __import__("math").cos,
+            "tan": __import__("math").tan,
+            "sqrt": __import__("math").sqrt,
+            "pi": __import__("math").pi,
+        })
+        result = eval(expression, allowed_names)
+        return str(result)
+    except Exception as e:
+        return f"计算错误：{str(e)}"
+```
 
-2. 第一个工具实现
-   - 工具名称：`calculate`
-   - 定义方式：@tool 装饰器
-   - 代码片段：
+2. 工具绑定与链（关键顺序）
+```python
+tools = [calculate]
+llm_with_tools = llm.bind_tools(tools)           # 先绑定工具
+prompt = create_prompt()
+llm_chain = prompt | llm_with_tools              # 再接提示词
+```
 
-     ```python
-     @tool
-     def calculate(expression: str) -> str:
-         """描述..."""
-         ...
+3. 系统提示词（关键部分）
+```
+你是一个具备计算能力的 AI 助手。
+当用户要求进行数学运算时，请调用 calculate 工具。
+计算完成后，请根据工具返回的结果给用户最终答案。
+全程用中文回复。
+```
+
+4. ReAct 图结构
+```python
+def build_graph_with_tool():
+    workflow = StateGraph(state_schema=MessagesState)
+    tool_node = ToolNode(tools=tools)
+    workflow.add_node("agent", agent)
+    workflow.add_node("tools", tool_node)
+    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges(
+        "agent",
+        tools_condition,
+        {"tools": "tools", END: END}
+    )
+    workflow.add_edge("tools", "agent")
+    return workflow.compile()
+```
+
+可视化（Mermaid 图）：
+```mermaid
+graph TD
+    __start__ --> agent
+    agent -.-> __end__
+    agent -.-> tools
+    tools --> agent
+```
+
+5. 交互循环关键逻辑（摘录）
+```python
+messages_history.append(user_msg)
+if len(messages_history) > config.max_history:
+    messages_history = messages_history[-config.max_history:]
+result = graph.invoke({"messages": messages_history})
+ai_msg = result["messages"][-1]
+messages_history.append(ai_msg)
+```
+
+## 测试记录（真实输出）
+
+1. 输入：你好
+
+   输出：正常问候回复（无工具调用）
+
+2. 输入：8 * 9 是多少？
+
+   输出：8 × 9 等于 72
+
+3. 输入：sin(pi/2) 等于多少？
+
+   输出：sin(π/2) 等于 1.0
+
+4. 输入：刚才的计算结果是多少？
+
+   输出：刚才的计算结果是：sin(π/2) = 1.0。
+
+5. 输入：(3 + 5) * 2 是多少？
+
+   输出：(3 + 5) × 2 等于 16
+
+## 关键收获（5 条）
+
+1. 工具绑定必须先 llm.bind_tools，再 prompt | llm_with_tools（顺序反了会报错）
+2. tools_condition 自动判断 AIMessage 是否有 tool_calls，决定是否进入 tools 节点
+3. ToolNode 会自动执行工具并把结果包装成 ToolMessage 回传给 agent
+4. prompt 必须明确写明工具使用规则、调用格式，否则模型可能不触发工具
+5. qwen-flash 模型工具调用能力较强，适合当前实验（比 deepseek-chat 更稳定）
+
+## 心得 & 感受
+
+- 今天最爽的时刻：更换更快更准确调用参数的模型后，准确率大幅上升；画出 Mermaid 图后，能够更深刻理解 ReAct 循环的流转路径
+- 最大的困惑：无（今天整体很顺）
+- 对代理的新理解：代理本质就是一个大模型节点，输入输出其实是自定义的，目前还是单输入单输出，记忆其实是代码实现的（messages_history 列表），后续可能会有更好的实现方式，或者封装好的函数（如 checkpointer）
+
+## 下一步计划（Day 3+）
+
+- 加更多工具（当前时间、天气查询、网页搜索）
+- 尝试更强模型（qwen2.5-72b-instruct）
+- 引入 checkpointer / MemorySaver，实现会话持久化与断点续传
+- 测试复杂多步计算（例如需要多次调用工具的题目）
+- （可选）用 LangGraph Studio 可视化调试
