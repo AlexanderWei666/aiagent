@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_openai import ChatOpenAI
 
 # 加载 .env
 load_dotenv(Path(__file__).parent / ".env")

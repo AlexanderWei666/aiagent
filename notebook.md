@@ -90,7 +90,7 @@ messages_history.append(ai_msg)
 - 运行输出：
 
 ```bash
-❯ python hello_agent.py
+❯ python hello_agent_v1.py
 2026-01-31 16:42:03 | INFO  | 加载模型配置：openrouter / deepseek/deepseek-chat (temp=0.4)
 2026-01-31 16:42:03 | INFO  | LangGraph 已编译完成
 
@@ -286,3 +286,62 @@ messages_history.append(ai_msg)
 - 引入 checkpointer / MemorySaver，实现会话持久化与断点续传
 - 测试复杂多步计算（例如需要多次调用工具的题目）
 - （可选）用 LangGraph Studio 可视化调试
+
+# AI Agent 学习笔记 - Day 3 (2026-02-03)
+
+## 今日目标
+会话持久化 + 增加实用工具
+
+## 核心实现
+
+1. 持久化（MemorySaver）
+   - 关键代码：
+     from langgraph.checkpoint.memory import MemorySaver
+     memory = MemorySaver()
+     graph = ... .compile(checkpointer=memory)
+     config = {"configurable": {"thread_id": "xxx"}}
+
+2. 新工具
+   - get_current_time：
+     @tool
+     def get_current_time(format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
+         """获取当前日期和时间，可指定格式"""
+         from datetime import datetime
+         return datetime.now().strftime(format_str)
+
+   - get_weather（示例）：
+     @tool
+     def get_weather(city: str = "Los Angeles") -> str:
+         """查询指定城市的当前天气"""
+         import requests
+         try:
+             url = "https://api.open-meteo.com/v1/forecast?latitude=34.05&longitude=-118.24&current=temperature_2m"
+             resp = requests.get(url).json()
+             temp = resp["current"]["temperature_2m"]
+             return f"{city} 当前温度约 {temp}℃"
+         except Exception as e:
+             return f"查询失败：{str(e)}"
+
+3. 测试结果
+   - 重启程序后问“我叫什么名字？” → 是否记住：__________
+   - 问“现在几点？” → 输出：__________
+   - 问“洛杉矶天气怎么样？” → 输出：__________
+   - 问“刚才的时间是几点？” → 输出：__________
+
+## 关键收获
+1. 使用 checkpointer 后，不再需要手动维护 messages_history 列表
+2. thread_id 可以区分不同会话，实现“多用户”支持
+3. 新工具加入后，需要更新 prompt 说明工具规则
+4. MemorySaver 是内存版，重启程序后会丢失；生产用需换 SQLiteSaver 或数据库
+5. 工具调用成功率很大程度取决于 prompt 是否清晰 + 模型能力
+
+## 心得
+最爽的时刻：______________________________
+最大的困惑：______________________________
+对代理的新理解：______________________________
+
+## 下一步计划
+- 加网页搜索工具
+- 尝试 SQLiteSaver 做文件持久化
+- 测试多步复杂任务（需要多次工具调用）
+- 用 LangGraph Studio 可视化整个流程
