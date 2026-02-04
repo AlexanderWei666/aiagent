@@ -1,18 +1,17 @@
 import logging
 import os
 import requests
-
+from datetime import datetime
 from pathlib import Path
+
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.graph import MessagesState
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
-from datetime import datetime
+from langgraph.graph import MessagesState, StateGraph, START, END
+from langgraph.prebuilt import ToolNode, tools_condition
 
 # ────────────────────────────────────────────────
 # 环境变量 & 日志
@@ -80,7 +79,7 @@ def calculate(expression: str) -> str:
     """执行数学计算。注意：sin/cos/tan 默认使用弧度。
     如需计算角度，请使用圆周率pi配合计算"""
     try:
-        logger.info(f"调用工具：传入表达式{expression}")
+        logger.info(f"调用工具：传入表达式 {expression}")
         # 安全起见，只允许基本的数学运算
         allowed_names = {"__builtins__": {}}
         allowed_names.update({
@@ -92,26 +91,28 @@ def calculate(expression: str) -> str:
             # 可以继续加其他函数
         })
         result = eval(expression, allowed_names)
-        logger.info(result)
+        logger.info(f"计算结果：{result}")
         return str(result)
     except Exception as e:
+        logger.error(f"计算错误：{str(e)}")
         return f"计算错误：{str(e)}"
 
 @tool
 def get_current_time(format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
     """获取当前时间，格式化输出"""
-    logger.info(f"调用工具：获取当前时间，格式化输出{format_str}")
     try:
+        logger.info(f"调用工具：获取当前时间，格式化输出 {format_str}")
         now = datetime.now()
         return now.strftime(format_str)
     except Exception as e:
+        logger.error(f"时间格式错误：{str(e)}")
         return f"时间格式错误：{str(e)}"
 
 @tool
 def get_weather(city: str = "成都") -> str:
     """获取指定城市天气，默认成都"""
-    logger.info(f"调用工具：获取指定城市{city}天气，默认成都")
     try:
+        logger.info(f"调用工具：获取指定城市 {city} 天气，默认成都")
         # 城市经纬度映射
         city_coords = {
             "成都": {"lat": 30.57, "lon": 104.06},
@@ -152,6 +153,7 @@ def get_weather(city: str = "成都") -> str:
         weather_desc = weather_map.get(weather_code, "未知天气")
         return f"{city}当前天气：{weather_desc}，温度约 {temp}℃"
     except Exception as e:
+        logger.error(f"天气查询失败：{str(e)}")
         return f"天气查询失败：{str(e)}"
 
 # ────────────────────────────────────────────────
@@ -199,12 +201,15 @@ def agent(state: MessagesState) -> dict:
 # 构建图
 # ────────────────────────────────────────────────
 memory = MemorySaver()
+
 def build_graph_with_tool():
-    workflow = StateGraph(state_schema=MessagesState) # type: ignore
+    """构建带有工具调用能力的 LangGraph 图"""
+    workflow = StateGraph(state_schema=MessagesState)  # type: ignore
     # 工具执行节点（LangGraph 官方预置）
     tool_node = ToolNode(tools=tools)
-    workflow.add_node("agent", agent) # type: ignore
+    workflow.add_node("agent", agent)  # type: ignore
     workflow.add_node("tools", tool_node)
+    
     # 条件边：由 tools_condition 自动判断
     # 如果最后一条消息是 AIMessage 且有 tool_calls，就去 tools 节点
     workflow.add_edge(START, "agent")
@@ -227,58 +232,64 @@ logger.info("LangGraph 已编译完成")
 # ────────────────────────────────────────────────
 
 def test_interactive_chat(verbose: bool = True):
-    """
-    多轮对话模式（带上下文记忆）
-    支持命令：
-      /clear, /reset   → 清空历史
-      /help            → 显示帮助
-      exit/quit/q      → 退出
+    """启动交互式对话模式
+    
+    Args:
+        verbose: 是否显示详细信息
     """
     print("\n" + "═" * 70)
-    print("🤖 AI 代理对话模式 已启动")
-    print("==========当前图 start=========")
-    print(graph.get_graph().draw_mermaid(with_styles=True))
-    print("==========当前图 end==========")
+    print("🤖 AI 代理对话模式 已启动（支持持久化）")
     print(f"  模型：{config.model}")
     print(f"  温度：{config.temperature}")
-    print(f"  最大历史：{config.max_history} 条")
     print("  命令：/help 查看帮助   exit / quit / q 退出")
     print("═" * 70 + "\n")
 
-    checkpoint_config = {"configurable": {"thread_id": "my_test_session_1"}}  # 固定这个 id 就是同一个会话
+    # 固定 thread_id，重启后还能接着聊
+    checkpoint_config = {"configurable": {"thread_id": "my_test_session_1"}}
+
     while True:
         try:
             user_input = input("你: ").strip()
             if not user_input:
                 continue
 
-            # 特殊命令处理
             cmd = user_input.lower()
             if cmd in ['exit', 'quit', 'q']:
                 print("\n👋 对话结束，欢迎下次使用！\n")
                 break
 
-            # 正常用户输入
-            user_msg = HumanMessage(content=user_input)
+            if cmd in ['/clear', '/reset']:
+                # 清空当前会话（删除 checkpoint）
+                memory.delete(checkpoint_config)
+                print("🧹 当前会话历史已清空\n")
+                continue
 
-            # 调用代理
-            result = graph.invoke({"messages": [user_msg]},config=checkpoint_config) # type: ignore
-            # logger.info(f"代理返回结果: {result['messages']}")
+            if cmd == '/help':
+                print("""
+可用命令：
+  /clear 或 /reset    清空当前会话历史
+  /help               显示此帮助
+  exit / quit / q     退出对话
+                """)
+                continue
+
+            # 只传当前用户消息，checkpointer 自动加载历史
+            inputs = {"messages": [HumanMessage(content=user_input)]}
+            result = graph.invoke(inputs, config=checkpoint_config)
+
             ai_msg = result["messages"][-1]
-
             print(f"AI : {ai_msg.content}\n")
 
-            # 打印历史消息
+            # 调试：显示当前保存的状态（可选）
             if verbose:
-                # 获取当前线程的历史记录
-                saved_state = memory.get(config=checkpoint_config)
+                saved_state = memory.get(checkpoint_config)
                 if saved_state and "channel_values" in saved_state:
                     messages = saved_state["channel_values"].get("messages", [])
-                    print("----- 历史消息 -----")
-                    for msg in messages[-config.max_history:]:
+                    print("----- 当前保存的历史（从 checkpointer 读取） -----")
+                    for msg in messages[-5:]:  # 只显示最近5条
                         role = "你" if isinstance(msg, HumanMessage) else "AI"
-                        print(f"{role}: {msg.content}")
-                    print("-------------------\n")
+                        print(f"{role}: {msg.content[:60]}...")
+                    print("--------------------------------------------\n")
 
         except KeyboardInterrupt:
             print("\n⚠️  对话已手动中断\n")
@@ -286,7 +297,6 @@ def test_interactive_chat(verbose: bool = True):
         except Exception as e:
             print(f"❌ 发生错误：{str(e)}\n")
             logger.exception("交互循环异常")
-
 
 # ────────────────────────────────────────────────
 # 主程序

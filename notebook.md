@@ -296,20 +296,30 @@ messages_history.append(ai_msg)
 
 1. 持久化（MemorySaver）
    - 关键代码：
+     
+     ```python
      from langgraph.checkpoint.memory import MemorySaver
      memory = MemorySaver()
      graph = ... .compile(checkpointer=memory)
      config = {"configurable": {"thread_id": "xxx"}}
-
+     ```
+     
+     
+   
 2. 新工具
    - get_current_time：
+     
+     ```python
      @tool
      def get_current_time(format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
          """获取当前日期和时间，可指定格式"""
          from datetime import datetime
          return datetime.now().strftime(format_str)
-
+     ```
+     
    - get_weather（示例）：
+     
+     ```python
      @tool
      def get_weather(city: str = "Los Angeles") -> str:
          """查询指定城市的当前天气"""
@@ -321,7 +331,10 @@ messages_history.append(ai_msg)
              return f"{city} 当前温度约 {temp}℃"
          except Exception as e:
              return f"查询失败：{str(e)}"
-
+     ```
+     
+     
+   
 3. 测试结果
    - 重启程序后问“我叫什么名字？” → 是否记住：__________
    - 问“现在几点？” → 输出：__________
