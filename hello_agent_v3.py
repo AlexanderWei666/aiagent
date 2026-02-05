@@ -244,8 +244,13 @@ def test_interactive_chat(verbose: bool = True):
     print("  命令：/help 查看帮助   exit / quit / q 退出")
     print("═" * 70 + "\n")
     checkpoint_config = {"configurable": {"thread_id": "my_test_session_1"}}
+
+    # 将 SQLite 文件放到独立目录（如 ./data/checkpoints/checkpoints.db）
+    db_dir = Path(__file__).parent / "data" / "checkpoints"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_dir / "checkpoints.db"
     
-    with SqliteSaver.from_conn_string("checkpoints.db") as memory:
+    with SqliteSaver.from_conn_string(str(db_path)) as memory:
         compile_graph = graph.compile(checkpointer=memory)
         while True:
             try:
@@ -259,9 +264,9 @@ def test_interactive_chat(verbose: bool = True):
                     break
 
                 if cmd in ['/clear', '/reset']:
-                    # 删除当前会话的 checkpoint
-                    # 注意：SqliteSaver 没有直接的 clear 方法，需要手动删除文件
-                    print("提示：SqliteSaver 需要手动删除 checkpoints.db 文件或使用新 thread_id")
+                    thread_id = checkpoint_config["configurable"]["thread_id"]
+                    memory.delete_thread(thread_id)
+                    print(f"🧹 当前会话历史已清空，thread_id: {thread_id}")
                     continue
 
                 if cmd == '/help':
