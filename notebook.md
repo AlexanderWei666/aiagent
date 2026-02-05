@@ -408,3 +408,137 @@ messages_history.append(ai_msg)
 - 测试多步任务（例如"先查天气，再算温度*2"）
 - 用 LangGraph Studio 打开当前图，实时调试
 - 尝试更强模型（qwen2.5-72b-instruct）对比工具调用稳定性
+
+## Day 4 (2026-02-05)
+
+### 今日目标
+
+实现真正的持久化存储（SqliteSaver）+ 项目结构优化
+
+### 核心实现
+
+1. **SQLite 持久化机制**
+   - 数据库文件路径管理：
+
+     ```python
+     # 将 SQLite 文件放到独立目录（如 ./data/checkpoints/checkpoints.db）
+     db_dir = Path(__file__).parent / "data" / "checkpoints"
+     db_dir.mkdir(parents=True, exist_ok=True)
+     db_path = db_dir / "checkpoints.db"
+     ```
+
+   - SQLite 上下文管理器使用：
+
+     ```python
+     with SqliteSaver.from_conn_string(str(db_path)) as memory:
+         compile_graph = graph.compile(checkpointer=memory)
+         # 聊天循环...
+     ```
+
+   - 关键改进：数据库文件放到 `./data/checkpoints/checkpoints.db`，保持根目录整洁
+
+2. **会话清空功能**
+   - 支持 `/clear` 或 `/reset` 命令：
+
+     ```python
+     if cmd in ['/clear', '/reset']:
+         thread_id = checkpoint_config["configurable"]["thread_id"]
+         memory.delete_thread(thread_id)
+         print(f"🧹 当前会话历史已清空，thread_id: {thread_id}")
+         continue
+     ```
+
+3. **项目结构优化**
+   - 保持现有的工具集合不变：
+
+     ```python
+     tools = [calculate, get_current_time, get_weather]
+     llm_with_tools = llm.bind_tools(tools)
+     llm_chain = prompt | llm_with_tools
+     ```
+
+   - 图构建逻辑保持一致：
+
+     ```python
+     def build_graph_with_tool() -> StateGraph:
+         """构建带有工具调用能力的 LangGraph 图"""
+         workflow = StateGraph(state_schema=MessagesState)
+         tool_node = ToolNode(tools=tools)
+         workflow.add_node("agent", agent)
+         workflow.add_node("tools", tool_node)
+         workflow.add_edge(START, "agent")
+         workflow.add_conditional_edges(
+             "agent",
+             tools_condition,
+             {"tools": "tools", END: END}
+         )
+         workflow.add_edge("tools", "agent")
+         return workflow
+     ```
+
+4. **启动信息优化**
+   - 显示持久化支持状态：
+
+     ```python
+     print("🤖 AI 代理对话模式 已启动（支持持久化）")
+     print(f"  模型：{config.model}")
+     print(f"  温度：{config.temperature}")
+     print("  命令：/help 查看帮助   exit / quit / q 退出")
+     ```
+
+5. **Mermaid 图（当前结构）**
+
+   ```mermaid
+   graph TD
+       __start__ --> agent
+       agent -.-> __end__
+       agent -.-> tools
+       tools --> agent
+   ```
+
+### 测试记录
+
+1. 输入：你好  
+   输出：正常问候回复（显示支持持久化）
+
+2. 输入：现在几点了？  
+   输出：调用 get_current_time，返回当前时间
+
+3. 输入：成都天气怎么样？  
+   输出：调用 get_weather，返回成都温度 + 天气描述
+
+4. 输入：刚才的时间是几点？  
+   输出：能记住上一次时间（持久化生效）
+
+5. 输入：/clear  
+   输出：?? 当前会话历史已清空，thread_id: my_test_session_1
+
+6. 重启程序后问：刚才我说过什么？  
+   输出：能记住重启前的对话内容（SQLite 持久化生效）
+
+7. 检查数据库文件：./data/checkpoints/checkpoints.db  
+   结果：数据库文件存在，数据完整保存
+
+### 关键收获
+
+1. SqliteSaver 实现真正的跨程序持久化，重启后数据不丢失
+2. 数据库文件放到 data/checkpoints 目录是良好的工程实践
+3. 使用上下文管理器确保 SQLite 连接正确关闭
+4. `memory.delete_thread(thread_id)` 可以清空指定会话
+5. 持久化存储让代理系统更加稳定可靠
+
+### 心得
+
+最爽的时刻：重启程序后代理还能记住之前的对话内容，真正的持久化实现了  
+最大的困惑：SqliteSaver 的上下文管理器使用方式，最初踩了坑（TypeError: Invalid checkpointer）  
+对代理的新理解：持久化是代理系统从实验走向实用的重要一步，让用户体验更连贯
+
+### 下一步计划
+
+- 添加会话管理功能（多会话支持、会话列表、会话切换）
+- 实现会话数据备份和恢复功能
+- 加网页搜索工具（requests + beautifulsoup）
+- 测试复杂多步任务（如"查完天气后计算温度变化"）
+- 用 LangGraph Studio 可视化调试状态
+- 尝试更强模型（qwen2.5-72b-instruct）对比效果
+- 考虑添加用户认证和权限管理
