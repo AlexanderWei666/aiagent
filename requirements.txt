@@ -1,0 +1,10 @@
+# AI Agent 项目依赖（LangGraph + LangChain）
+# 安装：pip install -r requirements.txt
+
+langgraph
+langchain
+langchain-core
+langchain-openai
+python-dotenv
+httpx
+requests
