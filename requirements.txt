@@ -2,6 +2,7 @@
 # 安装：pip install -r requirements.txt
 
 langgraph
+langgraph-checkpoint-sqlite
 langchain
 langchain-core
 langchain-openai
