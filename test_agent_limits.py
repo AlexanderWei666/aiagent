@@ -254,7 +254,7 @@ if __name__ == "__main__":
         thread_id="test_multistep"
     )
     
-    input("\n⏸️  按 Enter 继续下一个测试...")
+    # input("\n⏸️  按 Enter 继续下一个测试...")
     
     # ============ 测试 2：工具失败处理 ============
     print("\n\n" + "▶️ " * 20)
@@ -269,7 +269,7 @@ if __name__ == "__main__":
         thread_id="test_failure"
     )
     
-    input("\n⏸️  按 Enter 继续下一个测试...")
+    # input("\n⏸️  按 Enter 继续下一个测试...")
     
     # ============ 测试 3：嵌套推理 ============
     print("\n\n" + "▶️ " * 20)
@@ -284,7 +284,7 @@ if __name__ == "__main__":
         thread_id="test_nested"
     )
     
-    input("\n⏸️  按 Enter 继续下一个测试...")
+    # input("\n⏸️  按 Enter 继续下一个测试...")
     
     # ============ 测试 4：并发需求（当前无法实现）============
     print("\n\n" + "▶️ " * 20)
