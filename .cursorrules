@@ -33,6 +33,14 @@
 
 ---
 
+## 终端代理规则（Claude + GPT 都要遵守）
+
+- 在执行涉及网络请求的命令前（如 python、pip、curl），必须临时取消代理环境变量：`HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY`（同时建议处理小写同名变量）。
+- 只允许“单次命令级别”取消代理，不得修改用户全局环境配置（例如 shell 配置文件、系统环境变量）。
+- 推荐写法：`env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy <command>`
+
+---
+
 ## 长期规则
 
 - 默认这是一个持续演进的项目
