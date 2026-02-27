@@ -569,7 +569,7 @@ messages_history.append(ai_msg)
 
 ### 测试设计
 
-创建了 `test_agent_limits.py`，包含 4 个系统性测试：
+创建了 `test_limits.py`，包含 4 个系统性测试：
 
 1. **多步推理**：查天气 → 用温度计算（测试顺序任务能力）
 2. **工具失败**：查询不支持的城市（测试错误处理）
@@ -626,8 +626,8 @@ messages_history.append(ai_msg)
   - 复杂任务可能跳步、重复或遗漏
   - 调试困难（不知道模型为什么选了某个工具）
 - **对 Manus/OpenClaw 的意义**：
-  - 真实机器人任务需要「任务分解 → 逐步执行 → 检查点确认」
-  - 隐式规划不够可控，危险操作必须有人工审核
+  - 高级 Agent 系统需要「任务分解 → 逐步执行 → 检查点确认」
+  - 隐式规划不够可控，关键操作必须有人工审核
   - 解决方案：Phase 6（Human-in-the-loop）和更显式的 Planner
 
 #### 局限 2：工具执行性能 = 顺序瓶颈
@@ -637,8 +637,8 @@ messages_history.append(ai_msg)
   - 涉及多个慢速 API（搜索、数据库）时，总耗时 = 单次 × N
   - 「查三城天气」理论上可并行（耗时 = max(单次)），实际可能是串行
 - **对 Manus/OpenClaw 的意义**：
-  - 机械臂的「视觉感知 + 力传感器读取 + 关节状态查询」可能需要并行
-  - 顺序执行会延迟控制回路，影响实时性
+  - 高级 Agent 的「多源信息查询 + 并行 API 调用」需要并发能力
+  - 顺序执行会增加总耗时，影响响应速度
   - 解决方案：Phase 7（并行图结构 / 自定义异步工具节点）
 
 ### 心得 & 感受
@@ -650,16 +650,36 @@ messages_history.append(ai_msg)
   - 性能瓶颈往往在「工具执行层」，而非「图结构层」
   - 隐式规划适合探索，显式规划适合生产
 
-### 下一步计划（明确 Phase 6）
+### 项目重新定位（2026-02-12）
 
-**已确认方向**：Phase 6 — Human-in-the-loop
+**新目标**：实现一个"教学版 OpenClaw"
+
+**范围调整**：
+- ✅ 必须做：电脑操作（bash/file）+ 显式规划 + 安全机制 + 持久记忆 + 单渠道
+- ❌ 不做：10 渠道同时接入、Gateway WebSocket、原生 App、Docker 沙箱、MCP 协议
+- 🎯 重点：理解核心架构原理，而非复刻完整产品
+
+**调整后的学习路径**：
+```
+Phase 6  → Human-in-the-loop（安全闸门）
+Phase 7  → 显式规划循环（Think→Plan→Act→Observe）
+Phase 8  → 电脑操作工具（bash + file.read/write）
+Phase 9  → 持久记忆优化（Markdown 跨会话存储）
+Phase 10 → Telegram Bot 接入（可选）
+```
+
+**预计时间**：7-11 周（每周 10-15 小时）
+
+---
+
+### 下一步：Phase 6 — Human-in-the-loop
 
 **第一个场景（待实现）**：
 - 在调用 `calculate` 前插入 interrupt，让用户确认表达式是否正确
 - 学习 LangGraph 的 `interrupt` / `Command` API
 - 实现「暂停 → 人工确认/修改 → 恢复执行」的完整流程
 
-**为什么这个优先级高**：
-- Phase 5 揭示的「隐式规划不可控」问题，直接由 Human-in-the-loop 解决
-- Manus/OpenClaw 里，物理动作执行前的人工审批是安全关键
-- 这是从「玩具 Agent」走向「可信 Agent」的第一步
+**为什么这个优先级最高**：
+- Phase 8 的电脑操作工具（bash/file）必须先有安全机制
+- OpenClaw 有 DM 配对、权限控制、Docker 隔离，说明安全是基础设施
+- 这是从「不可控 Agent」走向「可信 Agent」的第一步

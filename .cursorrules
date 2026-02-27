@@ -8,8 +8,8 @@
 
 **第二步：按需读其他文件**
 - 讨论学习路径/概念 → 读 `notebook.md`
-- 讨论当前实现 → 读 `hello_agent_v3.py`
-- 讨论测试结果 → 读 `test_agent_limits.py`
+- 讨论当前实现 → 读 `main.py`
+- 讨论测试结果 → 读 `test_limits.py`
 - **禁止**：不要一开始就读所有 .py 文件
 
 **更新责任**
