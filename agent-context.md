@@ -103,14 +103,25 @@ Phase 10      单渠道接入（Telegram Bot，可选）
 - 🔧 **工具层抽取**：所有工具集中到 `agent_tools.py`，支持跨版本复用
 - 🚫 **显式拒绝策略**：`get_weather` 对不支持城市返回友好错误而非异常
 - ✅ **PASS/FAIL 判定**：测试脚本支持 `expected_keywords` 和 `min_tool_calls` 断言
+- 📝 **命令性 Prompt 修复**：解决「未指定城市仍反问用户」的问题，增加第 5 个测试验证
+
+**模块化重构**（2026-02-12）：
+- 代码从 `hello_agent_v3.py` 单文件重构为 4 个模块：`agent_tools` / `agent_core` / `agent_cli` / `main`
+- 经历两轮重构（GPT 过度抽象 → Claude 审查后简化命名）
+- 最终确立"教学优先"命名原则：文件名要能直接说明职责
 
 ### 🔄 当前阶段
 
 **Phase 6：Human-in-the-loop（人在回路中）**
-- **状态**：待开始
+- **状态**：⏳ 待开始（新窗口从这里接手）
 - **目标**：学习在关键操作前暂停，等人工确认/修改后继续
 - **为什么是第一优先级**：后续的电脑操作工具（bash/file）必须有安全闸门
-- **下一步**：在 `calculate` 工具前加 interrupt，实现「暂停 → 确认 → 恢复」流程
+- **第一个实现场景**：在调用 `calculate` 前插入 `interrupt`，实现「暂停 → 显示表达式 → 用户确认/修改 → 恢复执行」
+
+> **📌 给新窗口 AI 的交接信息**：  
+> 用户已完成 Phase 1-5（LangGraph 基础 + 工具调用 + 持久化记忆 + 系统测试）。  
+> 代码结构完整（见五、文件结构）。  
+> 下一步：讲解 LangGraph 的 `interrupt` + `Command` API，引导用户实现 Phase 6 第一个场景。
 
 ### 📅 后续阶段（教学版 OpenClaw 路线）
 
@@ -189,7 +200,7 @@ MAX_HISTORY=20
 
 ## 四、Phase 5 核心结论（系统局限）
 
-### 测试结果总结
+### 测试结果总结（5 个场景）
 
 | 测试 | 结果 | 关键发现 |
 |------|------|----------|
@@ -197,6 +208,7 @@ MAX_HISTORY=20
 | 工具失败（查询纽约） | ✅ 优雅拒绝 | 模型能预判工具能力，避免盲目调用 |
 | 嵌套推理（3 步链式） | ✅ 成功 | 当前 MessagesState 支持 3 步推理 |
 | 并发需求（查三城） | ⚠️ 部分支持 | 模型能一次发 3 个请求，但 ToolNode 可能顺序执行 |
+| 默认城市策略 | ✅ 成功 | 命令性 Prompt 覆盖模型"反问"习惯 |
 
 ### 两大核心局限
 
@@ -230,26 +242,43 @@ MAX_HISTORY=20
 
 ```
 aiagent/
-├── agent-context.md        # 本文件（项目快照）
-├── notebook.md             # 详细学习日志
-├── .cursorrules            # Claude/GPT 协作规则
-├── propmt_list.txt         # 系统 Prompt 设计
-├── .env                    # 配置文件
-├── requirements.txt        # 依赖
+├── agent-context.md     # 本文件（项目快照）
+├── notebook.md          # 详细学习日志
+├── .cursorrules         # Claude/GPT 协作规则
+├── .env                 # 配置文件
 │
-├── agent_tools.py          # 🆕 工具层（共享模块）
-├── agent_core.py           # 图构建 + 配置装配
-├── agent_cli.py            # CLI 交互运行器
-├── hello_agent_v1.py       # Phase 1-2: 基础图 + 工具
-├── hello_agent_v2.py       # Phase 3: MemorySaver
-├── main.py                 # 主入口（当前推荐运行文件）
-├── test_limits.py          # 系统局限性测试（带 PASS/FAIL）
-├── llm_base_test.py        # 基座 LLM 测试工具
+├── agent_tools.py       # Tool 层：工具定义（calculate / time / weather）
+├── agent_core.py        # Core 层：LLM 配置 + 图构建
+├── agent_cli.py         # CLI 层：交互循环 + SqliteSaver 持久化
+├── main.py              # App 层：启动入口（3 行完成组装）
+├── test_limits.py       # Test 层：5 个回归测试场景（带 PASS/FAIL）
+│
+├── hello_agent_v1.py    # 历史版本（Phase 1-2，仅供参考）
+├── hello_agent_v2.py    # 历史版本（Phase 3，仅供参考）
+├── llm_base_test.py     # 基座 LLM 连通性测试工具
 │
 └── data/
-    └── checkpoints/        # SQLite 持久化存储
-        ├── checkpoints.db      # 正式会话
-        └── test_checkpoints.db # 测试会话
+    └── checkpoints/     # SQLite 持久化存储
+        ├── checkpoints.db       # main.py 正式会话
+        └── test_checkpoints.db  # test_limits.py 测试会话
+```
+
+**依赖关系**（从底层到顶层）：
+```
+agent_tools.py  ←  被 agent_core、main、test_limits 引用
+agent_core.py   ←  被 main、test_limits 引用
+agent_cli.py    ←  被 main 引用
+```
+
+**启动方式**：
+```bash
+# 交互式对话
+env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy \
+  python main.py
+
+# 回归测试
+env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy \
+  python test_limits.py
 ```
 
 ---

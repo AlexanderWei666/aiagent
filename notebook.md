@@ -725,3 +725,80 @@ Phase 10 → Telegram Bot 接入（可选）
 - Phase 8 的电脑操作工具（bash/file）必须先有安全机制
 - OpenClaw 有 DM 配对、权限控制、Docker 隔离，说明安全是基础设施
 - 这是从「不可控 Agent」走向「可信 Agent」的第一步
+
+---
+
+## Day 7 (2026-02-12) —— 代码重构：模块化架构定型
+
+### 背景
+
+Phase 5 完成后，代码经历了两轮重构：
+
+1. **GPT 第一轮重构**：从 `hello_agent_v3.py` 提取出模块（工具层、核心层、CLI 层）。结果：功能正确，但文件命名抽象（`agent_runtime.py`、`chat_runner.py`、`agent_toolkit.py`）不利于学习。
+2. **第二轮简化命名**：按"教学优先"原则，回归直白命名，让文件名能直接说明它在做什么。
+
+### 最终模块结构
+
+```
+agent_tools.py   →  工具定义（计算 / 时间 / 天气）
+agent_core.py    →  LLM 配置 + 图构建
+agent_cli.py     →  CLI 交互循环 + SqliteSaver
+main.py          →  入口（3 行组装，10 行运行）
+test_limits.py   →  5 个回归测试（PASS/FAIL 判定）
+```
+
+**依赖关系**：
+```
+agent_tools.py ← agent_core.py ← agent_cli.py
+                                ← main.py
+                                ← test_limits.py
+```
+
+### 关键代码模式
+
+**main.py（最简组装）**：
+```python
+tools = get_default_tools()
+config, graph = create_configured_graph(tools=tools)
+run_interactive_chat(graph=graph, config=config)
+```
+
+**create_configured_graph（一键建图）**：
+```python
+def create_configured_graph(tools, system_prompt=DEFAULT_SYSTEM_PROMPT):
+    config = create_default_config()   # 加载 .env → 创建 LLMConfig
+    graph  = build_agent_graph(config, tools, system_prompt)
+    return config, graph
+```
+
+**test_limits.py（回归测试）**：新增了第 5 个测试——「默认城市策略」，验证 Prompt 工程修复后的行为。
+
+### 重构经验：命名原则
+
+| 反面示例 | 正面示例 | 理由 |
+|---------|---------|------|
+| `agent_runtime.py` | `agent_core.py` | runtime 过于抽象，core 直指"核心" |
+| `chat_runner.py` | `agent_cli.py` | runner 不直观，cli 直接说明用途 |
+| `agent_toolkit.py` | `agent_tools.py` | toolkit 多余，tools 简洁 |
+| `run_agent.py` | `main.py` | 约定俗成的 Python 入口命名 |
+
+**结论**：教学项目的命名优先选「读到名字就知道它做什么」，而不是「显得专业」。
+
+### 测试场景更新
+
+`test_limits.py` 目前包含 **5 个测试场景**：
+
+| # | 场景 | 断言 |
+|---|------|------|
+| 1 | 多步推理：查天气 → 计算 | min_tool_calls=2, 含"成都" |
+| 2 | 工具失败：查询纽约 | 工具输出含"暂不支持", "纽约" |
+| 3 | 嵌套推理：天气 → 计算 → 再算 | min_tool_calls=2, 含"成都" |
+| 4 | 并发需求：查三城 | min_tool_calls=1, 含"北京上海成都" |
+| 5 | 默认城市策略：未指定城市 | min_tool_calls=1, 含"成都" |
+
+### 关键收获
+
+1. **模块化的价值**：main.py 只有 3 行业务逻辑，说明关注点分离做到位了
+2. **命名即文档**：好的文件名让新人 5 分钟看懂架构，坏的命名让老人都要看代码才理解
+3. **测试即规范**：回归测试把「期望行为」写成了代码，是最活的文档
+4. **图没变，架构变了**：LangGraph 的节点图结构从未改变，变的是围绕它的工程组织方式
