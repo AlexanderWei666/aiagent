@@ -28,7 +28,7 @@ def run_interactive_chat(
         db_path = db_dir / "checkpoints.db"
 
     with SqliteSaver.from_conn_string(str(db_path)) as memory:
-        compiled_graph = graph.compile(checkpointer=memory)
+        compiled_graph = graph.compile(checkpointer=memory,interrupt_before=["tools"])
         while True:
             try:
                 user_input = input("你: ").strip()
@@ -58,8 +58,23 @@ exit / quit / q     退出对话
 
                 inputs = {"messages": [HumanMessage(content=user_input)]}
                 result = compiled_graph.invoke(inputs, config=checkpoint_config)
-                ai_msg = result["messages"][-1]
-                print(f"AI : {ai_msg.content}\n")
+                last_msg = result["messages"][-1]
+                if last_msg.tool_calls:
+                    # 图被interrupted，工具调用未完成，提示用户等待
+                    tool_call = last_msg.tool_calls[0]
+                    print(f"⏸️  即将执行工具：{tool_call['name']}")
+                    print(f"   参数：{tool_call['args']}")
+
+                    comfirm = input("是否继续执行工具？(y/n): ").strip().lower()
+                    if comfirm == "y":
+                        result = compiled_graph.invoke(None, config=checkpoint_config)
+                        last_msg = result["messages"][-1]
+                        print(f"AI : {last_msg.content}\n")
+                    else:
+                        print("❌ 已取消工具调用。输入 /clear 可重置会话。\n")
+                        continue
+                else:
+                    print(f"AI : {last_msg.content}\n")
 
             except KeyboardInterrupt:
                 print("\n⚠️  对话已手动中断\n")

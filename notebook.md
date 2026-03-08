@@ -802,3 +802,59 @@ def create_configured_graph(tools, system_prompt=DEFAULT_SYSTEM_PROMPT):
 2. **命名即文档**：好的文件名让新人 5 分钟看懂架构，坏的命名让老人都要看代码才理解
 3. **测试即规范**：回归测试把「期望行为」写成了代码，是最活的文档
 4. **图没变，架构变了**：LangGraph 的节点图结构从未改变，变的是围绕它的工程组织方式
+
+---
+
+## Phase 6 (2026-03-08) —— Human-in-the-loop：interrupt 确认机制
+
+### 目标
+
+在工具执行前插入人工确认点：暂停 → 显示工具名+参数 → 用户确认/取消 → 恢复执行
+
+### 核心实现要点
+
+| 要点 | 实现方式 |
+|------|----------|
+| 暂停点插入 | `graph.compile(checkpointer=memory, interrupt_before=["tools"])` |
+| 判断是否暂停 | `last_msg.tool_calls` 是否非空 |
+| 恢复执行 | `compiled_graph.invoke(None, config=checkpoint_config)` |
+| 取消处理 | `continue` 跳回循环，提示用 `/clear` 清除挂起状态 |
+
+### 关键代码（agent_cli.py）
+
+```python
+compiled_graph = graph.compile(checkpointer=memory, interrupt_before=["tools"])
+
+result = compiled_graph.invoke(inputs, config=checkpoint_config)
+last_msg = result["messages"][-1]
+if last_msg.tool_calls:
+    # 图被 interrupted，显示工具信息让用户确认
+    tool_call = last_msg.tool_calls[0]
+    print(f"⏸️  即将执行工具：{tool_call['name']}")
+    print(f"   参数：{tool_call['args']}")
+    comfirm = input("是否继续执行工具？(y/n): ").strip().lower()
+    if comfirm == "y":
+        result = compiled_graph.invoke(None, config=checkpoint_config)  # 恢复执行
+        last_msg = result["messages"][-1]
+        print(f"AI : {last_msg.content}\n")
+    else:
+        print("❌ 已取消工具调用。输入 /clear 可重置会话。\n")
+        continue
+```
+
+### 待思考（自己填写）
+
+- 取消后不 `/clear` 直接发下一条消息，会发生什么？为什么？（填写：___）
+- `invoke(None, ...)` 里的 `None` 具体代表什么含义？（填写：___）
+- 现在 interrupt 对**所有工具**生效，如果只想对 `calculate` 暂停，怎么做？（填写：___）
+- 取消后状态挂起，是否有更优雅的解法？（填写：___）
+
+### 当前局限
+
+- 取消后状态挂起，需手动 `/clear`
+
+### 对 OpenClaw 的意义
+
+- OpenClaw 的 `bash` 工具执行前可以配置需要确认
+- DM 配对机制本质是「陌生人消息的人工审批」
+- 这是从「自动化 Agent」走向「协作 Agent」的关键一步

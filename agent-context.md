@@ -78,8 +78,8 @@
 
 ```
 Phase 1-5  ✅ 基础 + 工具 + 记忆 + 测试         （已完成）
-Phase 6    ⏳ Human-in-the-loop                （进行中）
-Phase 7    🆕 显式规划循环（Think→Plan→Act→Observe）
+Phase 6    ✅ Human-in-the-loop                （已完成：interrupt 确认机制）
+Phase 7    ⏳ 显式规划循环（Think→Plan→Act→Observe）
 Phase 8    🆕 电脑操作工具（bash + file）
 Phase 9       持久记忆优化（Markdown 文件）
 Phase 10      单渠道接入（Telegram Bot，可选）
@@ -98,30 +98,7 @@ Phase 10      单渠道接入（Telegram Bot，可选）
 | Phase 3 | 内存持久化（MemorySaver） | `hello_agent_v2.py` | ✅ |
 | Phase 4 | 真持久化（SqliteSaver + 项目结构优化） | `main.py` | ✅ |
 | Phase 5 | 系统局限性测试 + 工具层抽取 + 回归测试框架 | `test_limits.py` + `agent_tools.py` | ✅ 已完成并优化 |
-
-**Phase 5 工程化改进**（2026-02-12）：
-- 🔧 **工具层抽取**：所有工具集中到 `agent_tools.py`，支持跨版本复用
-- 🚫 **显式拒绝策略**：`get_weather` 对不支持城市返回友好错误而非异常
-- ✅ **PASS/FAIL 判定**：测试脚本支持 `expected_keywords` 和 `min_tool_calls` 断言
-- 📝 **命令性 Prompt 修复**：解决「未指定城市仍反问用户」的问题，增加第 5 个测试验证
-
-**模块化重构**（2026-02-12）：
-- 代码从 `hello_agent_v3.py` 单文件重构为 4 个模块：`agent_tools` / `agent_core` / `agent_cli` / `main`
-- 经历两轮重构（GPT 过度抽象 → Claude 审查后简化命名）
-- 最终确立"教学优先"命名原则：文件名要能直接说明职责
-
-### 🔄 当前阶段
-
-**Phase 6：Human-in-the-loop（人在回路中）**
-- **状态**：⏳ 待开始（新窗口从这里接手）
-- **目标**：学习在关键操作前暂停，等人工确认/修改后继续
-- **为什么是第一优先级**：后续的电脑操作工具（bash/file）必须有安全闸门
-- **第一个实现场景**：在调用 `calculate` 前插入 `interrupt`，实现「暂停 → 显示表达式 → 用户确认/修改 → 恢复执行」
-
-> **📌 给新窗口 AI 的交接信息**：  
-> 用户已完成 Phase 1-5（LangGraph 基础 + 工具调用 + 持久化记忆 + 系统测试）。  
-> 代码结构完整（见五、文件结构）。  
-> 下一步：讲解 LangGraph 的 `interrupt` + `Command` API，引导用户实现 Phase 6 第一个场景。
+| Phase 6 | Human-in-the-loop（interrupt 确认机制） | `agent_cli.py` | ✅ |
 
 ### 📅 后续阶段（教学版 OpenClaw 路线）
 
@@ -283,52 +260,20 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 
 ---
 
-## 六、下一步学习方向（Phase 6 详细规划）
+## 六、协作规则（给 AI 助手）
 
-### Phase 6：Human-in-the-loop
+### Claude 角色（导师 + 工程师合一）
 
-**目标**：实现「暂停 → 人工确认/修改 → 恢复执行」的完整流程
+**必读**：本文件（agent-context.md），了解当前进度、技术栈、核心结论。
 
-**为什么这是第一优先级**：
-- Phase 8 的电脑操作工具（bash/file）是危险的，必须先有安全机制
-- OpenClaw 有 DM 配对、权限控制、Docker 隔离，说明安全是基础设施
-- 从「不可控的 Agent」走向「可信任的 Agent」
+**导师模式**（用户问概念 / 架构 / 方向时）：
+- 讲清「为什么」，并联系 OpenClaw 真实做法
+- 不直接给完整代码，引导用户自己推导
+- 每次回答末尾说明下一步方向
 
-**需要学习的概念**：
-1. LangGraph 的 `interrupt` 机制（在节点前暂停）
-2. `Command` API（修改状态后恢复执行）
-3. 如何在图中标记「需要人工介入」的节点
-4. 暂停状态的持久化（SqliteSaver 支持）
-
-**第一个实现场景**：
-- 在调用 `calculate` 前暂停，显示待执行的表达式
-- 用户可以：✅ 确认执行 / ✏️ 修改表达式 / ❌ 取消
-- 确认后恢复执行，返回计算结果
-
-**成功标准**：
-- 能在任意工具前插入 interrupt 点
-- 能修改工具参数后继续执行
-- 能取消执行并优雅退出
-
-**对 OpenClaw 的意义**：
-- OpenClaw 的 `bash` 工具执行前可以配置需要确认
-- DM 配对机制本质是「陌生人消息的人工审批」
-- 这是从「自动化 Agent」走向「协作 Agent」的关键一步
-
----
-
-## 七、协作规则（给 AI 助手）
-
-### Claude（Sonnet）角色
-- 导师身份：概念讲解、架构设计、方向判断
-- **先读本文件**，了解当前进度和上下文
-- 不直接写完整实现代码
-- 每次回答说明下一步学习方向
-
-### GPT（Codex）角色
-- 工程师身份：代码实现、调试、重构
-- **先读本文件**，了解技术栈和架构
-- 优先点评代码问题，不整体重写
+**工程师模式**（用户要写代码 / 调试 / 重构时）：
+- 优先点评问题，不整体重写
+- 改动最小化，代码可运行、可理解、可扩展
 - 关注 Agent 执行循环、Tool 抽象、Memory 扩展性
 
 ### 高效上下文使用原则
@@ -445,5 +390,5 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 
 ---
 
-**最后更新**：2026-02-12（重新定位为"教学版 OpenClaw"）  
-**下次更新时机**：Phase 6 完成后
+**最后更新**：2026-03-08（Phase 6 完成）
+**下次更新时机**：Phase 7 完成后
