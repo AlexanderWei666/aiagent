@@ -1,5 +1,5 @@
 """主程序入口：组装默认配置、工具与图，并启动 CLI 对话。"""
-
+import readline
 import logging
 
 from agent_cli import run_interactive_chat

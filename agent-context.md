@@ -126,16 +126,19 @@ requests  # 天气 API
 ### 3.2 当前架构
 
 ```
-代理图结构（main.py）：
-  START → agent → [tools_condition] → tools → agent → END
-                              ↓
-                             END
+代理图结构（Phase 6 后）：
+  START → agent → [_route_tools] → calculate → agent → END
+                               ↘ tools    → agent
+                               ↘ END
+
+  interrupt_before=["calculate"]：calculate 节点前暂停，等待人工确认
 
 核心模块映射：
 - Executor：StateGraph + 条件边
-- Tool：@tool + bind_tools + ToolNode
+- Tool：@tool + bind_tools + ToolNode（calculate/tools 两个节点）
 - Memory：SqliteSaver（./data/checkpoints/checkpoints.db）
 - Planner：隐式（模型自己决定用哪个工具）
+- Safety：interrupt_before + 人工确认（calculate 专属）
 ```
 
 ### 3.3 可用工具（已抽取到 `agent_tools.py`）

@@ -37,7 +37,10 @@ WEATHER_CODE_MAP = {
 
 @tool
 def calculate(expression: str) -> str:
-    """执行数学计算。注意：sin/cos/tan 默认使用弧度。"""
+    """执行数学计算，传入合法的 Python 数学表达式字符串。
+    支持：四则运算(+, -, *, /, //, %, **)、括号、sin/cos/tan（弧度制）、sqrt、pi。
+    示例：'3 + 5 * 2'、'sqrt(16)'、'sin(pi / 2)'、'2 ** 10'。
+    """
     try:
         logger.info(f"调用工具：calculate | 表达式: {expression}")
         allowed_names = {"__builtins__": {}}

@@ -805,56 +805,116 @@ def create_configured_graph(tools, system_prompt=DEFAULT_SYSTEM_PROMPT):
 
 ---
 
-## Phase 6 (2026-03-08) —— Human-in-the-loop：interrupt 确认机制
+## Day 8 (2026-03-08) —— Phase 6: Human-in-the-loop
 
-### 目标
+### 今日目标
 
-在工具执行前插入人工确认点：暂停 → 显示工具名+参数 → 用户确认/取消 → 恢复执行
+在 `calculate` 工具执行前插入人工确认点，其他工具（查时间、查天气）自动执行。
+实现「暂停 → 显示表达式 → 用户确认/取消 → 恢复/放弃」的完整流程。
 
-### 核心实现要点
+### 核心实现
 
-| 要点 | 实现方式 |
-|------|----------|
-| 暂停点插入 | `graph.compile(checkpointer=memory, interrupt_before=["tools"])` |
-| 判断是否暂停 | `last_msg.tool_calls` 是否非空 |
-| 恢复执行 | `compiled_graph.invoke(None, config=checkpoint_config)` |
-| 取消处理 | `continue` 跳回循环，提示用 `/clear` 清除挂起状态 |
+1. **为什么不能直接用 `interrupt_before=["tools"]`**
 
-### 关键代码（agent_cli.py）
+   `interrupt_before` 只能指定节点名，一个 `tools` 节点装了所有工具，interrupt 就会对所有工具生效。必须把 `calculate` 拆成独立节点，才能精确控制。
 
-```python
-compiled_graph = graph.compile(checkpointer=memory, interrupt_before=["tools"])
+2. **节点拆分（agent_core.py）**
 
-result = compiled_graph.invoke(inputs, config=checkpoint_config)
-last_msg = result["messages"][-1]
-if last_msg.tool_calls:
-    # 图被 interrupted，显示工具信息让用户确认
-    tool_call = last_msg.tool_calls[0]
-    print(f"⏸️  即将执行工具：{tool_call['name']}")
-    print(f"   参数：{tool_call['args']}")
-    comfirm = input("是否继续执行工具？(y/n): ").strip().lower()
-    if comfirm == "y":
-        result = compiled_graph.invoke(None, config=checkpoint_config)  # 恢复执行
-        last_msg = result["messages"][-1]
-        print(f"AI : {last_msg.content}\n")
-    else:
-        print("❌ 已取消工具调用。输入 /clear 可重置会话。\n")
-        continue
-```
+   ```python
+   TOOLS_REQUIRING_CONFIRMATION = {"calculate"}
 
-### 待思考（自己填写）
+   confirm_tools = [t for t in tool_list if t.name in TOOLS_REQUIRING_CONFIRMATION]
+   auto_tools    = [t for t in tool_list if t.name not in TOOLS_REQUIRING_CONFIRMATION]
 
-- 取消后不 `/clear` 直接发下一条消息，会发生什么？为什么？（填写：___）
-- `invoke(None, ...)` 里的 `None` 具体代表什么含义？（填写：___）
-- 现在 interrupt 对**所有工具**生效，如果只想对 `calculate` 暂停，怎么做？（填写：___）
-- 取消后状态挂起，是否有更优雅的解法？（填写：___）
+   workflow.add_node("calculate", ToolNode(tools=confirm_tools))
+   workflow.add_node("tools",     ToolNode(tools=auto_tools))
+   ```
 
-### 当前局限
+3. **自定义路由函数（替代 tools_condition）**
 
-- 取消后状态挂起，需手动 `/clear`
+   ```python
+   def _route_tools(state: MessagesState):
+       last = state["messages"][-1]
+       if not getattr(last, "tool_calls", None):
+           return END
+       tool_name = last.tool_calls[0]["name"]
+       return "calculate" if tool_name in TOOLS_REQUIRING_CONFIRMATION else "tools"
+   ```
 
-### 对 OpenClaw 的意义
+   新图结构：
+   ```
+   START → agent → [_route_tools] → calculate → agent → END
+                                  ↘ tools    → agent
+                                  ↘ END
+   ```
 
-- OpenClaw 的 `bash` 工具执行前可以配置需要确认
-- DM 配对机制本质是「陌生人消息的人工审批」
-- 这是从「自动化 Agent」走向「协作 Agent」的关键一步
+4. **interrupt + 确认循环（agent_cli.py）**
+
+   ```python
+   compiled_graph = graph.compile(checkpointer=memory, interrupt_before=["calculate"])
+
+   result = compiled_graph.invoke(inputs, config=checkpoint_config)
+   last_msg = result["messages"][-1]
+   if last_msg.tool_calls:
+       # calculate 节点前被 interrupt，工具尚未开始执行
+       tool_call = last_msg.tool_calls[0]
+       print(f"⏸️  即将执行工具：{tool_call['name']}")
+       print(f"   参数：{tool_call['args']}")
+       comfirm = input("是否继续执行工具？(y/n): ").strip().lower()
+       if comfirm == "y":
+           result = compiled_graph.invoke(None, config=checkpoint_config)  # 恢复
+           last_msg = result["messages"][-1]
+           print(f"AI : {last_msg.content}\n")
+       else:
+           print("❌ 已取消工具调用。输入 /clear 可重置会话。\n")
+           continue
+   else:
+       print(f"AI : {last_msg.content}\n")
+   ```
+
+   `invoke(None, ...)` 里的 `None`：表示不追加任何新消息，直接从 checkpoint 恢复执行。
+
+### 测试记录
+
+1. 输入：3 加 5 等于多少
+   输出：弹出确认提示，参数 `{'expression': '3 + 5'}`，确认后返回 8
+
+2. 输入：现在几点了
+   输出：直接调用 get_current_time，无确认弹窗（走 tools 节点）
+
+3. 输入：上海天气加 10 再减 8
+   预期：先自动查天气（tools 节点），再弹出 calculate 确认
+   实际：**测不过**。模型拿到天气数值后直接内联计算，不调用 calculate。
+   原因：上下文中已有数字时，模型把"加减"识别为"自然语言问句"而非"委托计算任务"，Prompt 无法可靠改变这一行为。
+   → 根本解法需要图结构层面的强制规划（Phase 7 方向）
+
+4. 取消后（输入 n）不执行 /clear，直接发下一条消息
+   结果：**抛出异常**。SqliteSaver checkpoint 记录着图停在 calculate 节点前的中断状态，LangGraph 拒绝接受新的 invoke，必须 /clear 才能继续。
+
+### 关键收获
+
+1. `interrupt_before` 是**节点级别**的拦截，工具尚未启动，不是「未完成」——这对 Phase 8 的 bash 安全沙箱很重要
+2. `invoke(None)` = 「不加新消息，从 checkpoint 继续」；`invoke(inputs)` = 「追加新消息，从头跑」
+3. 精确 interrupt 需要拆节点，这是 LangGraph 的基本设计原则：节点是控制单元
+4. Prompt 控制（命令性语句）和图结构控制（interrupt）不是同一层次，后者更可靠
+
+### 心得 & 感受
+
+- 最爽的时刻：测试场景 1 和 2，单步工具的路由完全正确；单步 calculate 确认流程很顺滑
+- 最大的困惑：一开始以为 `interrupt_before=["tools"]` 能搞定，后来才明白「节点是控制单元」这个关键原则
+- 对代理的新理解：「安全」不是靠 Prompt 说「请先问用户」，而是靠图结构强制暂停——这就是 OpenClaw 用 Docker 隔离 + DM 配对的底层逻辑
+
+### 踩坑记录
+
+**多步任务中 calculate 不被调用**：输入「查天气，再把温度加 100」，模型查完天气后直接在回复里写出计算结果，绕过 calculate 工具。
+
+- 尝试 1：加强 system prompt（「必须调用」「不得自己推算」）→ 无效
+- 尝试 2：换 deepseek-v3 模型 → 仍然无效
+- 根本原因：模型拿到天气数字后，把「整合答案」和「做计算」视为同一件事，不认为需要调工具。这是**模型的隐式判断**，Prompt 无法可靠覆盖。
+- 结论：**多步任务中的工具调用行为只能靠图结构强制，不能靠 Prompt 引导**——这正是 Phase 6 interrupt 和 Phase 7 显式规划的根本价值。
+
+### 当前局限 & 下一步
+
+- 取消后状态挂起，需手动 `/clear`（更优雅的解法：回滚到上一个 checkpoint，或注入「用户拒绝」消息让 AI 自行处理）
+- 多步任务中 calculate 依赖模型自觉调用，可靠性不足（Phase 7 显式规划将从架构层面解决）
+- **Phase 7**：把 agent 节点拆成 Think → Plan → Act → Observe 四个独立节点，实现显式规划循环
