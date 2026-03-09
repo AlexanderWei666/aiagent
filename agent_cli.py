@@ -3,8 +3,14 @@
 from pathlib import Path
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
+from agent_core import (
+    build_checkpoint_config,
+    continue_after_interrupt,
+    compile_runtime_graph,
+    get_pending_tool_call,
+    invoke_user_turn,
+)
 
 
 def run_interactive_chat(
@@ -14,22 +20,17 @@ def run_interactive_chat(
     db_path: Optional[Path] = None,
 ) -> None:
     """启动带 SQLite 持久化的交互式对话。"""
-    print("\n" + "═" * 70)
-    print("🤖 AI 代理对话模式 已启动（支持持久化）")
-    print(f"  模型：{config.model}")
-    print(f"  温度：{config.temperature}")
-    print("  命令：/help 查看帮助   exit / quit / q 退出")
-    print("═" * 70 + "\n")
+    print(f"模型：{config.model}  温度：{config.temperature}")
+    print("命令：/help 查看帮助   exit / quit / q 退出\n")
 
-    checkpoint_config = {"configurable": {"thread_id": thread_id}}
+    checkpoint_config = build_checkpoint_config(thread_id)
     if db_path is None:
         db_dir = Path(__file__).parent / "data" / "checkpoints"
         db_dir.mkdir(parents=True, exist_ok=True)
         db_path = db_dir / "checkpoints.db"
 
     with SqliteSaver.from_conn_string(str(db_path)) as memory:
-        compiled_graph = graph.compile(checkpointer=memory, interrupt_before=["calculate"])
-        print(compiled_graph.get_graph().draw_ascii())
+        compiled_graph = compile_runtime_graph(graph=graph, checkpointer=memory)
         while True:
             try:
                 user_input = input("你: ").strip()
@@ -38,47 +39,47 @@ def run_interactive_chat(
 
                 cmd = user_input.lower()
                 if cmd in ["exit", "quit", "q"]:
-                    print("\n👋 对话结束，欢迎下次使用！\n")
                     break
 
                 if cmd in ["/clear", "/reset"]:
                     memory.delete_thread(thread_id)
-                    print(f"🧹 当前会话历史已清空，thread_id: {thread_id}")
+                    print(f"会话历史已清空 (thread_id: {thread_id})\n")
                     continue
 
                 if cmd == "/help":
                     print(
-                        """
-可用命令：
-/clear 或 /reset    清空当前会话历史
-/help               显示此帮助
-exit / quit / q     退出对话
-                        """
+                        "/clear /reset    清空当前会话历史\n"
+                        "/help            显示此帮助\n"
+                        "exit / quit / q  退出对话\n"
                     )
                     continue
 
-                inputs = {"messages": [HumanMessage(content=user_input)]}
-                result = compiled_graph.invoke(inputs, config=checkpoint_config)
-                last_msg = result["messages"][-1]
-                if last_msg.tool_calls:
-                    # 图在 calculate 节点前被 interrupt，工具尚未开始执行，等待用户确认
-                    tool_call = last_msg.tool_calls[0]
-                    print(f"⏸️  即将执行工具：{tool_call['name']}")
-                    print(f"   参数：{tool_call['args']}")
+                result = invoke_user_turn(
+                    compiled_graph=compiled_graph,
+                    user_input=user_input,
+                    checkpoint_config=checkpoint_config,
+                )
 
-                    comfirm = input("是否继续执行工具？(y/n): ").strip().lower()
-                    if comfirm == "y":
-                        result = compiled_graph.invoke(None, config=checkpoint_config)
-                        last_msg = result["messages"][-1]
-                        print(f"AI : {last_msg.content}\n")
-                    else:
-                        print("❌ 已取消工具调用。输入 /clear 可重置会话。\n")
-                        continue
-                else:
-                    print(f"AI : {last_msg.content}\n")
+                pending = get_pending_tool_call(result)
+                cancelled = False
+                while pending:
+                    print(f"[待确认] 工具：{pending['name']}  参数：{pending['args']}")
+                    confirm = input("执行？(y/n): ").strip().lower()
+                    if confirm != "y":
+                        print("已取消。输入 /clear 可重置会话。\n")
+                        cancelled = True
+                        break
+
+                    result = continue_after_interrupt(
+                        compiled_graph=compiled_graph,
+                        checkpoint_config=checkpoint_config,
+                    )
+                    pending = get_pending_tool_call(result)
+
+                if not cancelled:
+                    print(f"AI: {result['messages'][-1].content}\n")
 
             except KeyboardInterrupt:
-                print("\n⚠️  对话已手动中断\n")
                 break
             except Exception as exc:
-                print(f"❌ 发生错误：{str(exc)}\n")
+                print(f"错误：{exc}\n")
