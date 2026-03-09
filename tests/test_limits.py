@@ -6,7 +6,7 @@ from typing import Optional, Sequence
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from agent_core import (
+from agent.core import (
     DEFAULT_SYSTEM_PROMPT,
     build_checkpoint_config,
     compile_runtime_graph,
@@ -15,7 +15,7 @@ from agent_core import (
     get_pending_tool_call,
     invoke_user_turn,
 )
-from agent_tools import get_default_tools
+from agent.tools import get_default_tools
 
 logging.basicConfig(
     level=logging.INFO,

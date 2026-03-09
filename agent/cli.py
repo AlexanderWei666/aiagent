@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from langgraph.checkpoint.sqlite import SqliteSaver
-from agent_core import (
+from agent.core import (
     build_checkpoint_config,
     continue_after_interrupt,
     compile_runtime_graph,

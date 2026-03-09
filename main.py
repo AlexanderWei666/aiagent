@@ -2,9 +2,9 @@
 import readline
 import logging
 
-from agent_cli import run_interactive_chat
-from agent_core import create_configured_graph
-from agent_tools import get_default_tools
+from agent.cli import run_interactive_chat
+from agent.core import create_configured_graph
+from agent.tools import get_default_tools
 
 logging.basicConfig(
     level=logging.INFO,
