@@ -97,8 +97,8 @@ Phase 10      单渠道接入（Telegram Bot，可选）
 | Phase 2 | 工具调用（ReAct 循环 + ToolNode + tools_condition） | `hello_agent_v1.py` | ✅ |
 | Phase 3 | 内存持久化（MemorySaver） | `hello_agent_v2.py` | ✅ |
 | Phase 4 | 真持久化（SqliteSaver + 项目结构优化） | `main.py` | ✅ |
-| Phase 5 | 系统局限性测试 + 工具层抽取 + 回归测试框架 | `test_limits.py` + `agent_tools.py` | ✅ 已完成并优化 |
-| Phase 6 | Human-in-the-loop（interrupt 确认机制） + 代码重构 | `agent_cli.py` / `agent_core.py` | ✅ |
+| Phase 5 | 系统局限性测试 + 工具层抽取 + 回归测试框架 | `tests/test_limits.py` + `agent/tools.py` | ✅ 已完成并优化 |
+| Phase 6 | Human-in-the-loop（interrupt 确认机制） + 代码重构 | `agent/cli.py` / `agent/core.py` | ✅ |
 
 ### 📅 后续阶段（教学版 OpenClaw 路线）
 
@@ -150,7 +150,7 @@ requests  # 天气 API
 | `get_weather` | 查询中国 10 城天气（open-meteo API）| 未指定城市时默认查成都；**显式拒绝**不支持的城市 |
 
 **工具层设计**：
-- 所有工具集中在 `agent_tools.py`，便于复用和维护
+- 所有工具集中在 `agent/tools.py`，便于复用和维护
 - 不支持的操作返回友好错误信息，而不是抛异常
 - 支持的城市列表：成都、北京、上海、广州、深圳、杭州、西安、重庆、武汉、南京
 
@@ -231,32 +231,30 @@ MAX_HISTORY=20
 
 ```
 aiagent/
-├── agent-context.md     # 本文件（项目快照）
-├── notebook.md          # 详细学习日志
-├── .cursorrules         # Claude/GPT 协作规则
-├── .env                 # 配置文件
-│
-├── agent_tools.py       # Tool 层：工具定义（calculate / time / weather）
-├── agent_core.py        # Core 层：LLM 配置 + 图构建
-├── agent_cli.py         # CLI 层：交互循环 + SqliteSaver 持久化
-├── main.py              # App 层：启动入口（3 行完成组装）
-├── test_limits.py       # Test 层：5 个回归测试场景（带 PASS/FAIL）
-│
-├── hello_agent_v1.py    # 历史版本（Phase 1-2，仅供参考）
-├── hello_agent_v2.py    # 历史版本（Phase 3，仅供参考）
-├── llm_base_test.py     # 基座 LLM 连通性测试工具
-│
+├── agent/               # 正式源码包
+│   ├── core.py          # LLM 配置 + 图构建
+│   ├── tools.py         # 工具定义（calculate / time / weather）
+│   └── cli.py           # CLI 交互循环 + SqliteSaver 持久化
+├── tests/
+│   ├── test_limits.py   # 5 个回归测试场景
+│   └── llm_base_test.py # 大模型连通性测试
+├── archive/             # 历史教学代码（Phase 1-3，仅供参考）
+│   ├── hello_agent_v1.py
+│   └── hello_agent_v2.py
+├── main.py              # 启动入口（3 行完成组装）
+├── CLAUDE.md / AGENTS.md / agent-context.md / notebook.md
+├── .env
 └── data/
     └── checkpoints/     # SQLite 持久化存储
-        ├── checkpoints.db       # main.py 正式会话
-        └── test_checkpoints.db  # test_limits.py 测试会话
+        ├── checkpoints.db
+        └── test_checkpoints.db
 ```
 
 **依赖关系**（从底层到顶层）：
 ```
-agent_tools.py  ←  被 agent_core、main、test_limits 引用
-agent_core.py   ←  被 main、test_limits 引用
-agent_cli.py    ←  被 main 引用
+agent/tools.py  ←  被 agent/core、main、tests/ 引用
+agent/core.py   ←  被 main、tests/ 引用
+agent/cli.py    ←  被 main 引用
 ```
 
 **启动方式**：
@@ -267,7 +265,7 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 
 # 回归测试
 env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy \
-  python test_limits.py
+  python tests/test_limits.py
 ```
 
 ---
@@ -305,11 +303,11 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 | 了解项目进度和技术栈 | 本文件（agent-context.md）|
 | 查看详细学习过程 | notebook.md |
 | 看当前可运行的代码 | main.py |
-| 了解系统局限性 | 本文件第四节 + test_limits.py |
-| 查看工具定义 | **agent_tools.py**（已抽取为共享模块）|
-| 理解图结构 | 本文件 3.2 节 + main.py |
+| 了解系统局限性 | 本文件第四节 + tests/test_limits.py |
+| 查看工具定义 | agent/tools.py |
+| 理解图结构 | 本文件 3.2 节 + agent/core.py |
 | 查看配置 | .env + 本文件 3.4 节 |
-| 运行回归测试 | `python test_limits.py` |
+| 运行回归测试 | `python tests/test_limits.py` |
 
 ---
 
