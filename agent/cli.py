@@ -25,7 +25,7 @@ def run_interactive_chat(
 
     checkpoint_config = build_checkpoint_config(thread_id)
     if db_path is None:
-        db_dir = Path(__file__).parent / "data" / "checkpoints"
+        db_dir = Path(__file__).resolve().parent.parent / "data" / "checkpoints"
         db_dir.mkdir(parents=True, exist_ok=True)
         db_path = db_dir / "checkpoints.db"
 

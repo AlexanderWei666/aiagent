@@ -1,4 +1,9 @@
 """系统局限性测试：验证多步推理、失败处理与工具调用边界。"""
+import sys
+from pathlib import Path
+
+# 将项目根目录加入 Python 路径，便于直接运行本文件
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import logging
 from pathlib import Path

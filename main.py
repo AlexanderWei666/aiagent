@@ -1,5 +1,8 @@
 """主程序入口：组装默认配置、工具与图，并启动 CLI 对话。"""
-import readline
+try:
+    import readline  # noqa: F401 - 增强命令行编辑，Windows 上不可用则跳过
+except ImportError:
+    pass
 import logging
 
 from agent.cli import run_interactive_chat

@@ -8,7 +8,9 @@ from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 
-# 加载 .env
+# 加载 .env（项目根目录主配置，tests 目录可覆盖）
+root = Path(__file__).resolve().parent.parent
+load_dotenv(root / ".env")
 load_dotenv(Path(__file__).parent / ".env")
 
 # ====================== 日志配置 ======================
