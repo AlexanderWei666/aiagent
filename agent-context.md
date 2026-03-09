@@ -98,7 +98,7 @@ Phase 10      单渠道接入（Telegram Bot，可选）
 | Phase 3 | 内存持久化（MemorySaver） | `hello_agent_v2.py` | ✅ |
 | Phase 4 | 真持久化（SqliteSaver + 项目结构优化） | `main.py` | ✅ |
 | Phase 5 | 系统局限性测试 + 工具层抽取 + 回归测试框架 | `test_limits.py` + `agent_tools.py` | ✅ 已完成并优化 |
-| Phase 6 | Human-in-the-loop（interrupt 确认机制） | `agent_cli.py` | ✅ |
+| Phase 6 | Human-in-the-loop（interrupt 确认机制） + 代码重构 | `agent_cli.py` / `agent_core.py` | ✅ |
 
 ### 📅 后续阶段（教学版 OpenClaw 路线）
 
@@ -156,7 +156,7 @@ requests  # 天气 API
 
 ### 3.5 Prompt 设计原则（经验记录）
 
-**教训**：Prompt 里的「默认值」不等于「强制指令」
+**教训 1**：Prompt 里的「默认值」不等于「强制指令」
 
 | 写法 | 效果 |
 |------|------|
@@ -164,6 +164,15 @@ requests  # 天气 API
 | `未指定城市时直接用 city='成都'，不要询问用户`（命令性）| ✅ 模型会直接调用工具 |
 
 **规律**：模型的「内置安全习惯（问清楚用户意图）」优先级高于描述性 Prompt，必须用命令句 + 禁止反问才能覆盖。
+
+**教训 2**：「默认值」规则不能覆盖「用户明确指定」的情况
+
+| 写法 | 问题 |
+|------|------|
+| `未指定城市时直接用 city='成都'` | ❌ 模型可能对不支持的城市也用成都替换 |
+| `未指定城市时用成都；用户明确指定了城市，必须用用户指定的城市` | ✅ 两种情况分别说清楚 |
+
+**规律**：Prompt 里的条件分支要对每种情况都显式说明，不能假设模型能正确推断"反面情况"。
 
 ### 3.4 配置（.env）
 
@@ -393,5 +402,5 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 
 ---
 
-**最后更新**：2026-03-08（Phase 6 完成）
+**最后更新**：2026-03-09（Phase 6 代码重构 + 精简）
 **下次更新时机**：Phase 7 完成后

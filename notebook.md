@@ -918,3 +918,60 @@ def create_configured_graph(tools, system_prompt=DEFAULT_SYSTEM_PROMPT):
 - 取消后状态挂起，需手动 `/clear`（更优雅的解法：回滚到上一个 checkpoint，或注入「用户拒绝」消息让 AI 自行处理）
 - 多步任务中 calculate 依赖模型自觉调用，可靠性不足（Phase 7 显式规划将从架构层面解决）
 - **Phase 7**：把 agent 节点拆成 Think → Plan → Act → Observe 四个独立节点，实现显式规划循环
+
+---
+
+## Day 9 (2026-03-09) —— 代码 review + 重构：精简风格
+
+### 背景
+
+GPT 帮忙做了一轮重构，提取了公共函数并统一了 CLI 和测试的 interrupt 策略。今天对这次改动做了 review、修复、精简。
+
+### Review 结论
+
+**GPT 做得对的事：**
+- 把 `build_checkpoint_config` / `compile_runtime_graph` / `invoke_user_turn` / `get_pending_tool_call` / `continue_after_interrupt` 提到 `agent_core.py`，让 CLI 和测试共享，消除了之前测试遗漏 `interrupt_before` 的 bug
+- `test_limits.py` 改用 `DEFAULT_SYSTEM_PROMPT`，避免两份 prompt 不同步
+- `while pending` 循环正确处理多步工具确认
+
+**GPT 引入的问题：**
+
+1. `while/else` 语义晦涩——Python 的 `while/else` 在「没有 break」时执行 else，逻辑虽然正确，但极少见，容易被误读为 bug。修复：改用 `cancelled` flag。
+
+2. `get_pending_tool_call` 只取 `tool_calls[0]`——如果模型并行发出多个 tool_call 只处理第一个。当前工具设计不会触发，加了注释。
+
+3. 输出风格「花里胡哨」——满屏 emoji（🤖👋🧹⏸️❌⚠️）和 `═══` 装饰边框。去除后更干净。
+
+### 精简原则
+
+**什么该去掉：**
+- 装饰性边框（`═` * 70）
+- `draw_ascii()` 图形（每次启动打印图结构，噪音）
+- emoji（视觉噪音，不影响功能）
+- 测试里重复的注释说明（测试名称本身就够清楚）
+
+**什么保留：**
+- 所有业务逻辑
+- 错误提示文字
+- 工具确认提示
+
+### 新发现的 Prompt bug
+
+测试 2「查询纽约天气」失败：AI 调用了 `get_weather(city='成都')` 而非 `get_weather(city='纽约')`。
+
+**原因**：Prompt 第 4 条「未指定城市时直接用 city='成都'」，模型把「不支持的城市」也理解成了「未指定城市」的情况，直接替换成成都。
+
+**修复**：
+```
+原：未指定城市时直接用 city='成都'，不要询问用户
+改：用户未指定城市时直接用 city='成都'，不要询问用户；用户明确指定了城市，必须用用户指定的城市调用工具
+```
+
+**规律**：Prompt 里的条件分支，正面情况和反面情况都要显式写出来，不能假设模型能正确推断「反面」。
+
+### 关键收获：何时让 AI 做抽象
+
+- AI 主导抽象的问题：提前抽象，不知道代码未来会不会变、会不会删
+- 更好的分工：**你来决定何时抽象**（痛点出现了）→ **AI 来执行抽象**（重命名、移动代码）
+- 抽象的驱动信号：① 两处重复且已出现 bug、② 代码名字比逻辑更清晰（函数名就是注释）
+- 没有这两个信号时，先不要抽象
