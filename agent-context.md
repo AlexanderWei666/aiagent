@@ -141,7 +141,7 @@ requests  # 天气 API
 - Safety：interrupt_before + 人工确认（calculate 专属）
 ```
 
-### 3.3 可用工具（已抽取到 `agent_tools.py`）
+### 3.3 可用工具（已抽取到 `agent/tools.py`）
 
 | 工具名 | 功能 | 策略 |
 |--------|------|------|
