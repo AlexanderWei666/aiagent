@@ -45,7 +45,7 @@ def run_test(
     print(f"\n[{test_name}]")
     print(f"输入: {user_input}\n")
 
-    db_dir = Path(__file__).parent / "data" / "checkpoints"
+    db_dir = Path(__file__).resolve().parent.parent / "data" / "checkpoints"
     db_dir.mkdir(parents=True, exist_ok=True)
     db_path = db_dir / "test_checkpoints.db"
 
@@ -115,7 +115,7 @@ def run_test(
 
 def clear_test_session(thread_id: str = "test_session") -> None:
     """清空测试会话。"""
-    db_path = Path(__file__).parent / "data" / "checkpoints" / "test_checkpoints.db"
+    db_path = Path(__file__).resolve().parent.parent / "data" / "checkpoints" / "test_checkpoints.db"
     if db_path.exists():
         with SqliteSaver.from_conn_string(str(db_path)) as memory:
             memory.delete_thread(thread_id)
