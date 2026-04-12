@@ -1,0 +1,48 @@
+{
+  "name": "aiagent",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.12-trixie",
+
+  // 让容器内工作区路径与宿主机保持一致
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind,consistency=cached",
+  "workspaceFolder": "${localWorkspaceFolder}",
+
+  // Node.js feature，仅用于运行 Claude Code CLI
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+
+  // 配置 pip 国内镜像，安装依赖，安装 Claude Code CLI
+  "postCreateCommand": "pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && pip config set global.trusted-host mirrors.aliyun.com && npm config set registry https://registry.npmmirror.com && pip install --upgrade pip && pip3 install --user -r requirements.txt && npm install -g @anthropic-ai/claude-code",
+
+  // 本地差异：将宿主机 ~/.claude 挂载到容器，Claude Code 登录态跨重建持久保留
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "christian-kohler.path-intellisense",
+        "dbaeumer.vscode-eslint",
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "github.copilot-chat",
+        "ms-azuretools.vscode-containers",
+        "ms-python.debugpy",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.vscode-python-envs",
+        "oderwat.indent-rainbow"
+      ],
+      "settings": {
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.autoImportCompletions": true,
+        "python.analysis.inlayHints.variableTypes": true,
+        "python.analysis.inlayHints.functionReturnTypes": true,
+        "editor.formatOnSave": true,
+        "editor.suggestSelection": "first"
+      }
+    }
+  }
+}
