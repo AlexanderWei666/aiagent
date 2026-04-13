@@ -178,7 +178,7 @@ requests  # 天气 API
 
 ```bash
 LLM_PROVIDER=openai
-LLM_MODEL=qwen-flash
+LLM_MODEL=deepseek-v3.2
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_API_KEY=<your-key>
 LLM_TEMPERATURE=0.6

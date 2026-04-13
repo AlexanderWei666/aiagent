@@ -44,9 +44,9 @@ class LLMConfig:
     """LLM 配置管理。"""
 
     def __init__(self):
-        self.provider = os.getenv("LLM_PROVIDER", "openrouter")
+        self.provider = os.getenv("LLM_PROVIDER", "openai")
         self.api_key = os.getenv("LLM_API_KEY")
-        self.model = os.getenv("LLM_MODEL", "qwen-flash")
+        self.model = os.getenv("LLM_MODEL", "deepseek-v3.2")
         self.temperature = float(os.getenv("LLM_TEMPERATURE", "0.4"))
         self.base_url = os.getenv(
             "LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
