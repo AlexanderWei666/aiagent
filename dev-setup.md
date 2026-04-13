@@ -77,7 +77,9 @@ docker info | grep -A5 "Registry Mirrors"
 
 **自动挂载的内容**（`devcontainer.json` 里已配好）：
 - 项目代码（`workspaceMount`）→ 与宿主机实时同步，改代码不需要重建容器
-- `~/.claude` → Claude Code 登录态跨容器重建持久保留
+- `~/.claude` + `~/.claude.json` → Claude Code 登录态跨容器重建持久保留（Pro 账号两个都需要）
+- `~/.gitconfig` → Git 配置（alias 等不会自动同步）
+- `~/.ssh` → SSH Key（只读挂载）
 
 ---
 
@@ -152,7 +154,10 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 | `workspaceMount` | 与宿主机同路径 bind mount | 代码实时同步，路径一致 |
 | `features` | node:1 | 注入 Node.js，用于运行 Claude Code CLI |
 | `postCreateCommand` | pip/npm 换源 + 安装依赖 | 容器首次创建后自动执行 |
-| `mounts` | `~/.claude` bind mount | Claude Code 登录态持久化 |
+| `mounts` | `~/.claude` bind mount | Claude Code 配置持久化 |
+| | `~/.claude.json` bind mount | Claude Code 登录态（Pro 必须） |
+| | `~/.gitconfig` bind mount | Git 完整配置（alias 等） |
+| | `~/.ssh` bind mount（只读） | SSH Key |
 
 ---
 
@@ -165,7 +170,7 @@ env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u al
 → 容器内手动运行：`pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/`
 
 **Claude Code 未登录**
-→ 容器内运行 `claude`，按提示完成认证。认证信息存在 `~/.claude`（已 bind mount，下次重建容器无需重新登录）。
+→ 容器内运行 `claude`，按提示完成认证。认证信息存在 `~/.claude` 和 `~/.claude.json`（两个都已 bind mount，Pro 账号缺一不可，下次重建容器无需重新登录）。
 
 **代理干扰 API 请求**
 → 运行命令前加 `env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY -u https_proxy -u http_proxy -u all_proxy`（见 Step 6）。

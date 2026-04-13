@@ -11,6 +11,8 @@
 
 ### 环境搭建
 
+> ⚠️ 此节为历史本地环境记录（Mac + Miniconda），当前已迁移到 Dev Container，见 `dev-setup.md`
+
 - Miniconda + Python 3.12.3 (ARM64)
 - 创建独立环境 py312 并设为默认激活
 
@@ -753,6 +755,8 @@ agent_tools.py ← agent_core.py ← agent_cli.py
                                 ← main.py
                                 ← test_limits.py
 ```
+
+> 注：后续重构中，这些文件被移入 `agent/` 包（`agent/tools.py` / `agent/core.py` / `agent/cli.py`），`test_limits.py` 移入 `tests/`，见 `agent-context.md` 五节。
 
 ### 关键代码模式
 
