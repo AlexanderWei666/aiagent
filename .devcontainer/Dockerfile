@@ -21,8 +21,10 @@ RUN curl -fsSL https://mirrors.aliyun.com/nodejs-release/v20.19.0/node-v20.19.0-
     | tar -xJ -C /usr/local --strip-components=1
 
 # 配置 pip 国内镜像 + 升级 pip
-RUN pip config set global.index-url ${PYPI_INDEX_URL} \
-    && pip config set global.trusted-host ${PYPI_TRUSTED_HOST} \
+# 使用 --global 写入 /etc/pip.conf（系统级），而非 /root/.config/pip/pip.conf（仅 root 用户级）
+# 这样 vscode 用户在容器内运行 pip 时同样走国内镜像，无需依赖 containerEnv 补救
+RUN pip config --global set global.index-url ${PYPI_INDEX_URL} \
+    && pip config --global set global.trusted-host ${PYPI_TRUSTED_HOST} \
     && pip install --upgrade pip
 
 # 将 npm 镜像与 Claude Code CLI 安装放到镜像构建层，利用 Docker 缓存。
@@ -32,3 +34,8 @@ RUN npm config set registry ${NPM_REGISTRY} \
 # 单独 COPY requirements.txt，内容不变则跳过安装（利用层缓存）
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
+
+# 预建 vscode 用户的缓存目录，确保 Docker volume 挂载时以 vscode:vscode 初始化
+# 若目录不存在，Docker 会以 root 创建 volume，导致 vscode 用户写入失败
+RUN mkdir -p /home/vscode/.cache/pip /home/vscode/.npm \
+    && chown -R vscode:vscode /home/vscode/.cache /home/vscode/.npm
