@@ -5,49 +5,29 @@
     "context": "..",
     "args": {
       "DEBIAN_MIRROR": "mirrors.tuna.tsinghua.edu.cn",
-      "NPM_REGISTRY": "https://registry.npmmirror.com",
       "PYPI_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
       "PYPI_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
     }
-  },
-
-  "containerEnv": {
-    // npm 镜像：Dockerfile 的 npm config 仅对 root 生效（构建时用），
-    // vscode 用户运行 npm 时依赖此环境变量
-    "NPM_CONFIG_REGISTRY": "https://registry.npmmirror.com"
-    // pip 镜像已由 Dockerfile 写入 /etc/pip.conf（系统级，所有用户共享），无需在此重复
   },
 
   // 让容器内工作区路径与宿主机保持一致
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind,consistency=cached",
   "workspaceFolder": "${localWorkspaceFolder}",
 
-  // Node.js 已移入 Dockerfile，features 不再需要
-  // "features": { "ghcr.io/devcontainers/features/node:1": {} },
+  "remoteUser": "root",
 
-  // 确保容器内所有操作以 vscode 用户身份运行
-  "remoteUser": "vscode",
-
-  // 预创建数据目录并修复所有权，防止 root 创建文件导致只读错误
-  "postCreateCommand": "mkdir -p data/checkpoints && sudo chown -R vscode:vscode data/ && echo 'devcontainer is ready'",
-
-  // 每次容器启动时修正 Docker volume 的所有权（历史遗留的 root 权限问题）
-  "postStartCommand": "sudo chown -R vscode:vscode /home/vscode/.cache/pip /home/vscode/.npm 2>/dev/null || true",
+  "postCreateCommand": "mkdir -p data/checkpoints && echo 'devcontainer is ready'",
 
   "mounts": [
-    // Claude Code（Pro 必须，两个都要挂）
-    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
-    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
+    // Claude Code
+    "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind",
 
-    // Git 完整配置（alias 等不会自动同步）
-    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
+    // Git
+    "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind",
 
     // SSH Key
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
-
-    // pip / npm 缓存持久化，挂到开发用户目录才能真正命中缓存
-    "source=aiagent-pip-cache,target=/home/vscode/.cache/pip,type=volume",
-    "source=aiagent-npm-cache,target=/home/vscode/.npm,type=volume"
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,readonly"
   ],
 
   "customizations": {
