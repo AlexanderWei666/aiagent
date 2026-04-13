@@ -1,18 +1,31 @@
 {
   "name": "aiagent",
-  "image": "mcr.microsoft.com/devcontainers/python:3-3.12-trixie",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "DEBIAN_MIRROR": "mirrors.tuna.tsinghua.edu.cn",
+      "NPM_REGISTRY": "https://registry.npmmirror.com",
+      "PYPI_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+      "PYPI_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
+    }
+  },
+
+  "containerEnv": {
+    "NPM_CONFIG_REGISTRY": "https://registry.npmmirror.com",
+    "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
+  },
 
   // 让容器内工作区路径与宿主机保持一致
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind,consistency=cached",
   "workspaceFolder": "${localWorkspaceFolder}",
 
-  // Node.js feature，仅用于运行 Claude Code CLI
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {}
-  },
+  // Node.js 已移入 Dockerfile，features 不再需要
+  // "features": { "ghcr.io/devcontainers/features/node:1": {} },
 
-  // 配置 pip 国内镜像，安装依赖，安装 Claude Code CLI
-  "postCreateCommand": "pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && pip config set global.trusted-host mirrors.aliyun.com && npm config set registry https://registry.npmmirror.com && pip install --upgrade pip && pip3 install --user -r requirements.txt && npm install -g @anthropic-ai/claude-code",
+  // 预留项目初始化命令（依赖安装已前移到 Dockerfile）
+  "postCreateCommand": "echo 'devcontainer is ready'",
 
   "mounts": [
     // Claude Code（Pro 必须，两个都要挂）
@@ -22,10 +35,13 @@
     // Git 完整配置（alias 等不会自动同步）
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
 
-    // SSH Key（用 SSH Agent 转发可省略此项）
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
-  ]
-,
+    // SSH Key
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
+
+    // pip / npm 缓存持久化，挂到开发用户目录才能真正命中缓存
+    "source=aiagent-pip-cache,target=/home/vscode/.cache/pip,type=volume",
+    "source=aiagent-npm-cache,target=/home/vscode/.npm,type=volume"
+  ],
 
   "customizations": {
     "vscode": {
