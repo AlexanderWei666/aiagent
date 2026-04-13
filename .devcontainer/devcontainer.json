@@ -14,10 +14,18 @@
   // 配置 pip 国内镜像，安装依赖，安装 Claude Code CLI
   "postCreateCommand": "pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && pip config set global.trusted-host mirrors.aliyun.com && npm config set registry https://registry.npmmirror.com && pip install --upgrade pip && pip3 install --user -r requirements.txt && npm install -g @anthropic-ai/claude-code",
 
-  // 本地差异：将宿主机 ~/.claude 挂载到容器，Claude Code 登录态跨重建持久保留
   "mounts": [
-    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
-  ],
+    // Claude Code（Pro 必须，两个都要挂）
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
+
+    // Git 完整配置（alias 等不会自动同步）
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind",
+
+    // SSH Key（用 SSH Agent 转发可省略此项）
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
+  ]
+,
 
   "customizations": {
     "vscode": {
