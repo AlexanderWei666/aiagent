@@ -16,7 +16,7 @@
 
   "remoteUser": "root",
 
-  "postCreateCommand": "mkdir -p data/checkpoints && echo 'devcontainer is ready'",
+  "postCreateCommand": "mkdir -p data/checkpoints && mkdir -p /root/.ssh && cp -r /root/.ssh_host/. /root/.ssh/ && chmod 700 /root/.ssh && chmod 600 /root/.ssh/* && echo 'devcontainer is ready'",
 
   "mounts": [
     // Claude Code
@@ -29,8 +29,8 @@
     // Git
     "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind",
 
-    // SSH Key
-    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,readonly"
+    // SSH Key（挂载到临时目录，postCreateCommand 里 copy+chmod 修正权限）
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh_host,type=bind,readonly"
   ],
 
   "customizations": {
