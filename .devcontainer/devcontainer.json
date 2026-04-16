@@ -23,6 +23,9 @@
     "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind",
     "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind",
 
+    // Codex
+    "source=${localEnv:HOME}/.codex,target=/root/.codex,type=bind",
+
     // Git
     "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind",
 
@@ -34,6 +37,7 @@
     "vscode": {
       "extensions": [
         "anthropic.claude-code",
+        "openai.chatgpt",
         "christian-kohler.path-intellisense",
         "dbaeumer.vscode-eslint",
         "eamodio.gitlens",

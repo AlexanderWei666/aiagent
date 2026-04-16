@@ -20,9 +20,17 @@ RUN pip config --global set global.index-url ${PYPI_INDEX_URL} \
     && pip config --global set global.trusted-host ${PYPI_TRUSTED_HOST} \
     && pip install --upgrade pip
 
+# 安装 Node.js / npm（Codex CLI 需要）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm bubblewrap\
+    && rm -rf /var/lib/apt/lists/*
+
 # 安装 Claude Code CLI（native installer，需先设 WORKDIR 否则 root 下会卡死）
 WORKDIR /tmp
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.104
+
+# 安装 Codex CLI
+RUN npm install -g @openai/codex@0.121.0
 
 # 单独 COPY requirements.txt，内容不变则跳过安装（利用层缓存）
 COPY requirements.txt /tmp/requirements.txt
